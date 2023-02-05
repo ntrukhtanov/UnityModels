@@ -3,7 +3,7 @@ import numpy as np
 
 
 def run():
-    env = UnityEnvironment("./Unity/DungeonEscape", num_areas=2)
+    env = UnityEnvironment("./Unity/DungeonEscape", no_graphics=True)
     env.reset()
     behavior_name = None
     for behavior_name in env.behavior_specs:
