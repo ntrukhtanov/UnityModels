@@ -4,8 +4,8 @@ import torch
 
 
 def run():
-    f = torch.__file__
-    env = UnityEnvironment("./Unity/DungeonEscape", no_graphics=True)
+    env = UnityEnvironment("./Unity/Walker", no_graphics=False)
+    #env = UnityEnvironment("/home/tnv/tempWalker/Walker", no_graphics=False)
     env.reset()
     behavior_name = None
     for behavior_name in env.behavior_specs:
