@@ -11,11 +11,14 @@ from body_parts import BodyPartProperties
 from actor import ActorModel
 from critic import CriticModel
 from loss_functions import calc_value_loss
+from loss_functions import calc_returns
 
 from memory import ExperienceBuffer
 
 RANDOM_SEED = 42
 
+GAMMA = 0.99
+LAM = 0.95
 
 def train():
 
@@ -80,7 +83,8 @@ def train():
 
             for agent_id in ds.agent_id:
                 idx = ds.agent_id_to_index[agent_id]
-                memory.add_experience(agent_id, torch.from_numpy(ds.obs[0][idx]), continious_actions[idx], ds.reward[idx], False,
+                memory.add_experience(agent_id, torch.from_numpy(ds.obs[0][idx]), continious_actions[idx],
+                                      ds.reward[idx], False,
                                       log_probs[idx], entropies)
 
         if ts.agent_id.shape[0] > 0:
@@ -90,12 +94,29 @@ def train():
         env.step()
 
         if memory.batch_is_full():
+            estimates = dict()
             for agent_id in memory.agent_ids:
-                critic_batch = memory.get_last_data(agent_id)
+                estimates[agent_id] = dict()
+                batch = memory.sample(agent_id)
+                last_data = memory.get_last_data(agent_id)
                 for body_part in walker_body.body.keys():
-                    values_full = critic_model.critic_full(critic_batch)
-                    values_body_part = critic_model.critic_body_part(critic_batch, body_part)
-                    memory.update_last_data(agent_id, body_part, values_full, values_body_part)
+                    estimates[agent_id][body_part] = dict()
+                    old_values_full = critic_model.critic_full(batch)
+                    estimates[agent_id][body_part]["old_values_full"] = old_values_full
+                    old_values_body_part = critic_model.critic_body_part(batch, body_part)
+                    estimates[agent_id][body_part]["old_values_body_part"] = old_values_body_part
+
+                    values_next = critic_model.critic_full(last_data)
+                    estimates[agent_id][body_part]["values_next"] = values_next
+
+                    returns = calc_returns(batch[body_part]["rewards"], batch[body_part]["dones"], old_values_full,
+                                           GAMMA,
+                                           LAM, values_next)
+                    estimates[agent_id][body_part]["returns"] = returns
+
+                    advantages = returns - old_values_body_part
+                    estimates[agent_id][body_part]["advantages"] = advantages
+
 
             for agent_id in memory.agent_ids:
                 batch = memory.sample(agent_id)
@@ -114,7 +135,6 @@ def train():
                     value_loss = calc_value_loss(values_full, old_values, returns)
 
             memory.reset()
-
 
 
 if __name__ == '__main__':

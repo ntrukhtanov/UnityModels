@@ -30,6 +30,7 @@ class ExperienceBuffer:
             for body_part in self.walker_body.body.keys():
                 self.buffer[agent_id][body_part] = dict()
                 self.buffer[agent_id][body_part]["entropy"] = list()
+                # TODO: Удалить, если не успользую
                 self.buffer[agent_id][body_part]["values_full"] = list()
                 self.buffer[agent_id][body_part]["values_body_part"] = list()
 
@@ -47,9 +48,11 @@ class ExperienceBuffer:
         buffer = dict()
         for body_part, body_part_prop in self.walker_body.body.items():
             buffer[body_part] = dict()
-            buffer[body_part]["obs"] = torch.stack(self.buffer[agent_id]["obs"], dim=0)
+            buffer[body_part]["obs"] = torch.stack(self.buffer[agent_id]["obs"][:-1], dim=0)
             buffer[body_part]["actions"] = torch.stack(
-                self.buffer[agent_id]["actions"], dim=0)[:, body_part_prop.action_space_idxs]
+                self.buffer[agent_id]["actions"][:-1], dim=0)[:, body_part_prop.action_space_idxs]
+            buffer[body_part]["rewards"] = torch.Tensor(self.buffer[agent_id]["rewards"][:-1])
+            buffer[body_part]["dones"] = torch.Tensor(self.buffer[agent_id]["dones"][:-1])
         return buffer
 
     def get_last_data(self, agent_id):
@@ -61,6 +64,7 @@ class ExperienceBuffer:
                 [self.buffer[agent_id]["actions"][-1]], dim=0)[:, body_part_prop.action_space_idxs]
         return buffer
 
+    # TODO: Удалить, если не успользую
     def update_last_data(self, agent_id, body_part, values_full, values_body_part):
         self.buffer[agent_id][body_part]["values_full"].append(values_full)
         self.buffer[agent_id][body_part]["values_body_part"].append(values_full)
