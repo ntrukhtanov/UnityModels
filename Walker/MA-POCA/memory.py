@@ -2,41 +2,72 @@ import numpy as np
 import torch
 
 
-class OnPolicyBatchReplay:
-    def __init__(self, batch_size, device):
-        self.batch_size = batch_size
-        self.device = device
-        self.batch = {}
-        self.batch_len = 0
-        self.reset()
+class ExperienceBuffer:
+    def __init__(self, walker_body, agent_ids, buffer_size):
+        self.walker_body = walker_body
+        self.agent_ids = agent_ids
+        self.buffer_size = buffer_size
+
+        self.buffer = dict()
+
+        self.reset(agent_ids)
 
     def reset(self):
-        self.batch = {}
-        self.batch['states'] = []
-        self.batch['actions'] = []
-        self.batch['rewards'] = []
-        self.batch['next_states'] = []
-        self.batch['dones'] = []
-        self.batch_len = 0
+        self.reset(self.agent_ids)
 
-    def add_experience(self, state, action, reward, next_state, done):
-        self.batch['states'].append(state)
-        self.batch['actions'].append(action)
-        self.batch['rewards'].append(reward)
-        self.batch['next_states'].append(next_state)
-        self.batch['dones'].append(done)
-        self.batch_len += 1
+    def reset(self, agent_ids):
+        self.buffer = dict()
+        for agent_id in agent_ids:
+            self.buffer[agent_id] = dict()
+            self.buffer[agent_id]["obs"] = list()
+            self.buffer[agent_id]["actions"] = list()
+            self.buffer[agent_id]["log_probs"] = list()
+            self.buffer[agent_id]["entropies"] = list()
+            self.buffer[agent_id]["rewards"] = list()
+            #self.buffer[agent_id]['next_obs'] = list()
+            self.buffer[agent_id]['dones'] = list()
 
-    def sample(self):
-        batch = {}
-        for k in self.batch:
-            bi = self.batch[k][:self.batch_size]
-            npa = np.array(bi)
-            ta = torch.from_numpy(npa.astype(np.float32)).to(self.device)
-            batch[k] = ta
-        self.reset()
-        return batch
+            for body_part in self.walker_body.body.keys():
+                self.buffer[agent_id][body_part] = dict()
+                self.buffer[agent_id][body_part]["entropy"] = list()
+                self.buffer[agent_id][body_part]["values_full"] = list()
+                self.buffer[agent_id][body_part]["values_body_part"] = list()
+
+    def add_experience(self, agent_id, obs, actions, reward, done, log_probs, entropies):
+        self.buffer[agent_id]["obs"].append(obs)
+        self.buffer[agent_id]["actions"].append(actions)
+        self.buffer[agent_id]["rewards"].append(reward)
+        self.buffer[agent_id]['dones'].append(done)
+
+        self.buffer[agent_id]["log_probs"].append(log_probs)
+        for body_part in self.walker_body.body.keys():
+            self.buffer[agent_id][body_part]["entropy"].append(entropies[body_part])
+
+    def sample(self, agent_id):
+        buffer = dict()
+        for body_part, body_part_prop in self.walker_body.body.items():
+            buffer[body_part] = dict()
+            buffer[body_part]["obs"] = torch.stack(self.buffer[agent_id]["obs"], dim=0)
+            buffer[body_part]["actions"] = torch.stack(
+                self.buffer[agent_id]["actions"], dim=0)[:, body_part_prop.action_space_idxs]
+        return buffer
+
+    def get_last_data(self, agent_id):
+        buffer = dict()
+        for body_part, body_part_prop in self.walker_body.body.items():
+            buffer[body_part] = dict()
+            buffer[body_part]["obs"] = torch.stack([self.buffer[agent_id]["obs"][-1]], dim=0)
+            buffer[body_part]["actions"] = torch.stack(
+                [self.buffer[agent_id]["actions"][-1]], dim=0)[:, body_part_prop.action_space_idxs]
+        return buffer
+
+    def update_last_data(self, agent_id, body_part, values_full, values_body_part):
+        self.buffer[agent_id][body_part]["values_full"].append(values_full)
+        self.buffer[agent_id][body_part]["values_body_part"].append(values_full)
 
     def batch_is_full(self):
-        return (self.batch_len >= self.batch_size)
+        for agent_id in self.agent_ids:
+            if len(self.buffer[agent_id]["actions"]) < self.buffer_size:
+                return False
+        return True
 

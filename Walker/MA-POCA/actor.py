@@ -6,16 +6,18 @@ EPSILON = 1e-7  # Small value to avoid divide by zero
 
 
 class ActorModel(nn.Module):
-    def __init__(self, body_part, body_part_properties):
+    def __init__(self, body_part, body_part_properties, input_dim):
         super().__init__()
         self.body_part = body_part
 
+        # в оригинале здесь сначала LinearEncoder, но я сначала упрощаю модель
         self.actor_body = nn.Sequential(
-            nn.Linear(body_part_properties.input_dim, body_part_properties.hidden_dim),
+            nn.Linear(input_dim, body_part_properties.hidden_dim),
             nn.Tanh(),
             nn.Linear(body_part_properties.hidden_dim, body_part_properties.output_dim)
         )
 
+        # TODO: пронаблюдать, что обучается
         self.log_sigma = nn.Parameter(
             torch.zeros(1, body_part_properties.output_dim, requires_grad=True)
         )
@@ -47,7 +49,7 @@ class ActorModel(nn.Module):
         log_prob = -((actions - mean) ** 2) / (2 * var + EPSILON) - log_scale_var - math.log(math.sqrt(2 * math.pi))
 
         entropy = torch.mean(0.5 * torch.log(2 * math.pi * math.e * std ** 2 + EPSILON), dim=1, keepdim=True)
-        entropy = torch.sum(entropy, dim=1)
+        #entropy = torch.sum(entropy, dim=1)
 
         return log_prob, entropy
 
