@@ -12,6 +12,7 @@ from actor import ActorModel
 from critic import CriticModel
 from loss_functions import calc_value_loss
 from loss_functions import calc_returns
+from loss_functions import calc_policy_loss
 
 from memory import ExperienceBuffer
 
@@ -19,6 +20,8 @@ RANDOM_SEED = 42
 
 GAMMA = 0.99
 LAM = 0.95
+EPSILON = 0.2
+BETA = 0.01
 
 def train():
 
@@ -88,8 +91,11 @@ def train():
                                       log_probs[idx], entropies)
 
         if ts.agent_id.shape[0] > 0:
-            # TODO: нужно реализовать завершение эпизода для агента
-            n_agents = ds.agent_id.shape[0]
+            for agent_id in ts.agent_id:
+                idx = ts.agent_id_to_index[agent_id]
+                obs = torch.from_numpy(ts.obs[0][idx])
+                reward = ts.reward[idx]
+                memory.set_terminate_state(agent_id, obs, reward)
 
         env.step()
 
@@ -114,9 +120,8 @@ def train():
                                            LAM, values_next)
                     estimates[agent_id][body_part]["returns"] = returns
 
-                    advantages = returns - old_values_body_part
+                    advantages = returns.unsqueeze(1) - old_values_body_part
                     estimates[agent_id][body_part]["advantages"] = advantages
-
 
             for agent_id in memory.agent_ids:
                 batch = memory.sample(agent_id)
@@ -125,14 +130,34 @@ def train():
                 for body_part in body_part_names:
                     obs = batch[body_part]["obs"]
                     actions = batch[body_part]["actions"]
-                    log_prob, entropy = body_model[body_part].evaluate_actions(obs, actions)
+                    log_probs, entropy = body_model[body_part].evaluate_actions(obs, actions)
 
                     values_full = critic_model.critic_full(batch)
 
                     values_body_part = critic_model.critic_body_part(batch, body_part)
 
-                    value_body_loss = calc_value_loss(values_full, old_body_values, returns)
-                    value_loss = calc_value_loss(values_full, old_values, returns)
+                    old_values_full = estimates[agent_id][body_part]["old_values_full"]
+                    old_values_body_part = estimates[agent_id][body_part]["old_values_body_part"]
+                    returns = estimates[agent_id][body_part]["returns"]
+
+                    value_body_loss = calc_value_loss(values_body_part, old_values_body_part, returns, EPSILON)
+                    value_loss = calc_value_loss(values_full, old_values_full, returns, EPSILON)
+
+                    old_log_probs = batch[body_part]["log_probs"]
+                    advantages = estimates[agent_id][body_part]["advantages"]
+
+                    policy_loss = calc_policy_loss(advantages, log_probs, old_log_probs, EPSILON)
+
+                    loss = (
+                            policy_loss
+                            + 0.5 * (value_loss + 0.5 * value_body_loss)
+                            - BETA * torch.mean(entropy)
+                    )
+
+                    optimizer.zero_grad()
+                    loss.backward()
+
+                    optimizer.step()
 
             memory.reset()
 
