@@ -9,6 +9,7 @@ import sys
 from tqdm import tqdm
 import statistics
 import os
+import traceback
 
 from body_parts import WalkerBody
 from body_parts import BodyPartProperties
@@ -21,6 +22,8 @@ from loss_functions import calc_policy_loss
 
 from memory import ExperienceBuffer
 
+from cloud_saver import CloudSaver
+
 RANDOM_SEED = 42
 
 GAMMA = 0.99
@@ -30,7 +33,7 @@ BETA = 0.01
 
 
 def train(model_file, summary_dir, total_steps, buffer_size,
-          save_path=None, save_freq=None, restore=None):
+          save_path=None, save_freq=None, restore=None, cloud_path=None):
     assert model_file is not None, f"Не указан обязательный параметр model_file"
     assert summary_dir is not None, f"Не указан обязательный параметр summary_dir"
     assert total_steps is not None, f"Не указан обязательный параметр total_steps"
@@ -44,6 +47,10 @@ def train(model_file, summary_dir, total_steps, buffer_size,
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     summary_writer = SummaryWriter(summary_dir)
+
+    cloud_saver = None
+    if cloud_path is not None:
+        cloud_saver = CloudSaver(cloud_path)
 
     walker_body = WalkerBody()
 
@@ -235,12 +242,29 @@ def train(model_file, summary_dir, total_steps, buffer_size,
                 save_file_name = os.path.join(save_path, f"model_{step}.pt")
                 torch.save(save_dict, save_file_name)
 
+                if cloud_saver is not None:
+                    summary_writer.flush()
+                    try:
+                        cloud_saver.save(step=step, checkpoint_file_name=save_file_name, tensorboard_dir=summary_dir)
+                    except Exception as ex:
+                        print(f"Ошибка копирования состояения в облако")
+                        for arg in ex.args:
+                            print(str(arg))
+                        print(traceback.format_exc())
+
         step += 1
         pbar.update(1)
 
 
 def run():
-    # -buffer_size 32 -total_steps 30000000 -model_file ./Unity/Walker -summary_dir /home/tnv/tensorboard -save_path /home/tnv/tempModel -save_freq 10000 -restore /home/tnv/tempModel/model_10.pt
+    # -buffer_size 32
+    # -total_steps 30000000
+    # -model_file ./Unity/Walker
+    # -summary_dir /home/tnv/tensorboard
+    # -save_path /home/tnv/tempModel
+    # -save_freq 10000
+    # -restore /home/tnv/tempModel/model_10.pt
+    # -cloud_path /Kaggle/Walker
 
     args = sys.argv
 
@@ -286,13 +310,20 @@ def run():
     else:
         restore = None
 
+    if '-cloud_path' in args:
+        idx = args.index('-cloud_path')
+        cloud_path = args[idx + 1]
+    else:
+        cloud_path = None
+
     train(model_file=model_file,
           summary_dir=summary_dir,
           total_steps=total_steps,
           buffer_size=buffer_size,
           save_path=save_path,
           save_freq=save_freq,
-          restore=restore)
+          restore=restore,
+          cloud_path=cloud_path)
 
 
 if __name__ == '__main__':
