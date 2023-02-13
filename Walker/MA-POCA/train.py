@@ -87,8 +87,8 @@ def train(model_file, summary_dir, total_steps, buffer_size):
                     input_data = input_data.to(device)
                     actions, log_prob, entropy = body_part_model.forward_with_stat(input_data)
                 idxs = walker_body.body[body_part].action_space_idxs
-                continious_actions[:, idxs] = actions
-                log_probs[:, idxs] = log_prob.detach()
+                continious_actions[:, idxs] = actions.cpu().detach()
+                log_probs[:, idxs] = log_prob.cpu().detach()
 
             action_tuple = ActionTuple()
             action_tuple.add_continuous(continious_actions.detach().cpu().numpy())
