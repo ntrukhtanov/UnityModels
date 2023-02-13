@@ -16,7 +16,4 @@ class LinearEncoder(nn.Module):
         self.encoder = nn.Sequential(*layers)
 
     def forward(self, inp):
-        print(f"LinearEncoder forward inp is in cuda {inp.is_cuda}")
-        for p in self.encoder.parameters():
-            print(f"LinearEncoder parameter is in cuda {p.is_cuda}")
         return self.encoder(inp)
