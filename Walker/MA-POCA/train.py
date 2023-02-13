@@ -84,6 +84,7 @@ def train(model_file, summary_dir, total_steps, buffer_size):
             log_probs = torch.zeros(n_agents, action_spec.continuous_size)
             for body_part, body_part_model in body_model.items():
                 with torch.no_grad():
+                    input_data = input_data.to(device)
                     actions, log_prob, entropy = body_part_model.forward_with_stat(input_data)
                 idxs = walker_body.body[body_part].action_space_idxs
                 continious_actions[:, idxs] = actions
@@ -121,8 +122,8 @@ def train(model_file, summary_dir, total_steps, buffer_size):
             estimates = dict()
             for agent_id in memory.agent_ids:
                 estimates[agent_id] = dict()
-                batch = memory.sample(agent_id)
-                last_data = memory.get_last_data(agent_id)
+                batch = memory.sample(agent_id, device)
+                last_data = memory.get_last_data(agent_id, device)
                 for body_part in walker_body.body.keys():
                     with torch.no_grad():
                         estimates[agent_id][body_part] = dict()
@@ -143,7 +144,7 @@ def train(model_file, summary_dir, total_steps, buffer_size):
                         estimates[agent_id][body_part]["advantages"] = advantages.detach()
 
             for agent_id in memory.agent_ids:
-                batch = memory.sample(agent_id)
+                batch = memory.sample(agent_id, device)
                 body_part_names = list(walker_body.body.keys())
                 random.shuffle(body_part_names)
                 for body_part in body_part_names:

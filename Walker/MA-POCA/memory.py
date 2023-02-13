@@ -39,27 +39,31 @@ class ExperienceBuffer:
             self.buffer[agent_id]["rewards"][last_idx] = reward
             self.buffer[agent_id]["dones"][last_idx] = True
 
-    def sample(self, agent_id):
+    def sample(self, agent_id, device):
         buffer = dict()
         for body_part, body_part_prop in self.walker_body.body.items():
             buffer[body_part] = dict()
-            buffer[body_part]["obs"] = torch.stack(self.buffer[agent_id]["obs"][:self.buffer_size-1], dim=0)
+            buffer[body_part]["obs"] = torch.stack(self.buffer[agent_id]["obs"][:self.buffer_size - 1], dim=0).to(
+                device)
             buffer[body_part]["actions"] = torch.stack(
-                self.buffer[agent_id]["actions"][:self.buffer_size-1], dim=0)[:, body_part_prop.action_space_idxs]
-            buffer[body_part]["rewards"] = torch.Tensor(self.buffer[agent_id]["rewards"][:self.buffer_size-1])
-            buffer[body_part]["dones"] = torch.Tensor(self.buffer[agent_id]["dones"][:self.buffer_size-1])
+                self.buffer[agent_id]["actions"][:self.buffer_size - 1], dim=0)[:, body_part_prop.action_space_idxs].to(
+                device)
+            buffer[body_part]["rewards"] = torch.Tensor(self.buffer[agent_id]["rewards"][:self.buffer_size - 1]).to(
+                device)
+            buffer[body_part]["dones"] = torch.Tensor(self.buffer[agent_id]["dones"][:self.buffer_size - 1]).to(device)
             buffer[body_part]["log_probs"] = torch.stack(
-                self.buffer[agent_id]["log_probs"][:self.buffer_size - 1], dim=0)[:, body_part_prop.action_space_idxs]
+                self.buffer[agent_id]["log_probs"][:self.buffer_size - 1], dim=0)[:,body_part_prop.action_space_idxs].to(
+                device)
         return buffer
 
-    def get_last_data(self, agent_id):
+    def get_last_data(self, agent_id, device):
         buffer = dict()
         for body_part, body_part_prop in self.walker_body.body.items():
             buffer[body_part] = dict()
             if self.buffer[agent_id]["dones"][self.buffer_size-2]:
-                buffer[body_part]["obs"] = torch.stack([self.buffer[agent_id]["next_obs"][self.buffer_size-2]], dim=0)
+                buffer[body_part]["obs"] = torch.stack([self.buffer[agent_id]["next_obs"][self.buffer_size-2]], dim=0).to(device)
             else:
-                buffer[body_part]["obs"] = torch.stack([self.buffer[agent_id]["obs"][self.buffer_size - 1]], dim=0)
+                buffer[body_part]["obs"] = torch.stack([self.buffer[agent_id]["obs"][self.buffer_size - 1]], dim=0).to(device)
         return buffer
 
     def batch_is_full(self):
