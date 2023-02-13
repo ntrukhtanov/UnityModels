@@ -86,7 +86,7 @@ def train(model_file, summary_dir, total_steps, buffer_size,
         optimizer = torch.optim.Adam(params, lr=0.0003)
         optimizer.load_state_dict(checkpoint['optimizer'])
 
-        step = checkpoint['step']
+        step = checkpoint['step'] + 1
 
     env = UnityEnvironment(model_file, worker_id=1, no_graphics=True)
     #env = UnityEnvironment("/home/tnv/tempWalker/Walker", no_graphics=False)
