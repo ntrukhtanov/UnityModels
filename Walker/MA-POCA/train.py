@@ -4,6 +4,10 @@ from mlagents_envs.base_env import ActionTuple
 import numpy as np
 import torch
 import random
+from torch.utils.tensorboard import SummaryWriter
+import sys
+from tqdm import tqdm
+import statistics
 
 from body_parts import WalkerBody
 from body_parts import BodyPartProperties
@@ -23,7 +27,11 @@ LAM = 0.95
 EPSILON = 0.2
 BETA = 0.01
 
-def train():
+
+def train(summary_dir, total_steps, buffer_size):
+    assert summary_dir is not None, f"Не указан обязательный параметр summary_dir"
+    assert total_steps is not None, f"Не указан обязательный параметр total_steps"
+    assert buffer_size is not None, f"Не указан обязательный параметр buffer_size"
 
     random.seed(RANDOM_SEED)
     np.random.seed(RANDOM_SEED)
@@ -31,6 +39,8 @@ def train():
     torch.cuda.manual_seed(RANDOM_SEED)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    summary_writer = SummaryWriter(summary_dir)
 
     walker_body = WalkerBody()
 
@@ -56,9 +66,10 @@ def train():
     observation_specs = env.behavior_specs[behavior_name].observation_specs
 
     memory = None
-    buffer_size = 32
 
-    while True:
+    agents_summary_rewards = dict()
+
+    for step in tqdm(range(total_steps)):
         ds, ts = env.get_steps(behavior_name)
         if ds.agent_id.shape[0] > 0:
             assert len(ds.obs) == 1, f"len(ds.obs) != 1"
@@ -86,13 +97,22 @@ def train():
                 idx = ds.agent_id_to_index[agent_id]
                 memory.add_experience(agent_id, torch.from_numpy(ds.obs[0][idx]), continious_actions[idx],
                                       ds.reward[idx], False, log_probs[idx])
+                summary_reward = agents_summary_rewards.get(agent_id, 0.0)
+                summary_reward += ds.reward[idx]
+                agents_summary_rewards[agent_id] = summary_reward
 
         if ts.agent_id.shape[0] > 0:
+            summary_rewards = list()
             for agent_id in ts.agent_id:
                 idx = ts.agent_id_to_index[agent_id]
                 obs = torch.from_numpy(ts.obs[0][idx])
                 reward = ts.reward[idx]
                 memory.set_terminate_state(agent_id, obs, reward)
+
+                summary_rewards.append(agents_summary_rewards[agent_id] + reward)
+                agents_summary_rewards[agent_id] = 0.0
+
+            summary_writer.add_scalar("Total reward", statistics.mean(summary_rewards), step)
 
         env.step()
 
@@ -152,6 +172,12 @@ def train():
                             - BETA * torch.mean(entropy)
                     )
 
+                    summary_writer.add_scalar("loss", loss.item(), step)
+                    summary_writer.add_scalar("policy_loss", policy_loss.item(), step)
+                    summary_writer.add_scalar("value_loss", value_loss.item(), step)
+                    summary_writer.add_scalar("value_body_loss", value_body_loss.item(), step)
+                    summary_writer.add_scalar("entropy", torch.mean(entropy).item(), step)
+
                     optimizer.zero_grad()
                     loss.backward()
 
@@ -160,6 +186,32 @@ def train():
             memory.reset()
 
 
+def run():
+    args = sys.argv
+
+    if '-summary_dir' in args:
+        idx = args.index('-summary_dir')
+        summary_dir = args[idx + 1]
+    else:
+        summary_dir = None
+
+    if '-total_steps' in args:
+        idx = args.index('-total_steps')
+        total_steps = int(args[idx + 1])
+    else:
+        total_steps = None
+
+    if '-buffer_size' in args:
+        idx = args.index('-buffer_size')
+        buffer_size = int(args[idx + 1])
+    else:
+        buffer_size = None
+
+    train(summary_dir=summary_dir,
+          total_steps=total_steps,
+          buffer_size=buffer_size)
+
+
 if __name__ == '__main__':
-    train()
+    run()
 

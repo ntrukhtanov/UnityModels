@@ -10,14 +10,11 @@ class ExperienceBuffer:
 
         self.buffer = dict()
 
-        self.reset(agent_ids)
+        self.reset()
 
     def reset(self):
-        self.reset(self.agent_ids)
-
-    def reset(self, agent_ids):
         self.buffer = dict()
-        for agent_id in agent_ids:
+        for agent_id in self.agent_ids:
             self.buffer[agent_id] = dict()
             self.buffer[agent_id]["obs"] = list()
             self.buffer[agent_id]["actions"] = list()
@@ -36,10 +33,11 @@ class ExperienceBuffer:
         self.buffer[agent_id]["log_probs"].append(log_probs)
 
     def set_terminate_state(self, agent_id, obs, reward):
-        self.buffer[agent_id]["next_obs"].append(obs)
-        last_idx = len(self.buffer[agent_id]["rewards"]) - 1
-        self.buffer[agent_id]["rewards"][last_idx] = reward
-        self.buffer[agent_id]["dones"][last_idx] = True
+        if len(self.buffer[agent_id]["rewards"]) > 0:
+            self.buffer[agent_id]["next_obs"].append(obs)
+            last_idx = len(self.buffer[agent_id]["rewards"]) - 1
+            self.buffer[agent_id]["rewards"][last_idx] = reward
+            self.buffer[agent_id]["dones"][last_idx] = True
 
     def sample(self, agent_id):
         buffer = dict()
