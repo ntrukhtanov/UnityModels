@@ -70,14 +70,12 @@ def train():
             continious_actions = torch.zeros(n_agents, action_spec.continuous_size)
             input_data = torch.from_numpy(ds.obs[0])
             log_probs = torch.zeros(n_agents, action_spec.continuous_size)
-            entropies = dict()
             for body_part, body_part_model in body_model.items():
                 with torch.no_grad():
                     actions, log_prob, entropy = body_part_model.forward_with_stat(input_data)
                 idxs = walker_body.body[body_part].action_space_idxs
                 continious_actions[:, idxs] = actions
-                log_probs[:, idxs] = log_prob
-                entropies[body_part] = entropy
+                log_probs[:, idxs] = log_prob.detach()
 
             action_tuple = ActionTuple()
             action_tuple.add_continuous(continious_actions.detach().cpu().numpy())
@@ -87,8 +85,7 @@ def train():
             for agent_id in ds.agent_id:
                 idx = ds.agent_id_to_index[agent_id]
                 memory.add_experience(agent_id, torch.from_numpy(ds.obs[0][idx]), continious_actions[idx],
-                                      ds.reward[idx], False,
-                                      log_probs[idx], entropies)
+                                      ds.reward[idx], False, log_probs[idx])
 
         if ts.agent_id.shape[0] > 0:
             for agent_id in ts.agent_id:
@@ -106,22 +103,23 @@ def train():
                 batch = memory.sample(agent_id)
                 last_data = memory.get_last_data(agent_id)
                 for body_part in walker_body.body.keys():
-                    estimates[agent_id][body_part] = dict()
-                    old_values_full = critic_model.critic_full(batch)
-                    estimates[agent_id][body_part]["old_values_full"] = old_values_full
-                    old_values_body_part = critic_model.critic_body_part(batch, body_part)
-                    estimates[agent_id][body_part]["old_values_body_part"] = old_values_body_part
+                    with torch.no_grad():
+                        estimates[agent_id][body_part] = dict()
+                        old_values_full = critic_model.critic_full(batch)
+                        estimates[agent_id][body_part]["old_values_full"] = old_values_full.detach()
+                        old_values_body_part = critic_model.critic_body_part(batch, body_part)
+                        estimates[agent_id][body_part]["old_values_body_part"] = old_values_body_part.detach()
 
-                    values_next = critic_model.critic_full(last_data)
-                    estimates[agent_id][body_part]["values_next"] = values_next
+                        values_next = critic_model.critic_full(last_data)
+                        estimates[agent_id][body_part]["values_next"] = values_next.detach()
 
-                    returns = calc_returns(batch[body_part]["rewards"], batch[body_part]["dones"], old_values_full,
-                                           GAMMA,
-                                           LAM, values_next)
-                    estimates[agent_id][body_part]["returns"] = returns
+                        returns = calc_returns(batch[body_part]["rewards"], batch[body_part]["dones"], old_values_full,
+                                               GAMMA,
+                                               LAM, values_next)
+                        estimates[agent_id][body_part]["returns"] = returns.detach()
 
-                    advantages = returns.unsqueeze(1) - old_values_body_part
-                    estimates[agent_id][body_part]["advantages"] = advantages
+                        advantages = returns.unsqueeze(1) - old_values_body_part
+                        estimates[agent_id][body_part]["advantages"] = advantages.detach()
 
             for agent_id in memory.agent_ids:
                 batch = memory.sample(agent_id)

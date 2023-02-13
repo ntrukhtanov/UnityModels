@@ -26,23 +26,14 @@ class ExperienceBuffer:
             self.buffer[agent_id]['next_obs'] = list()
             self.buffer[agent_id]['dones'] = list()
 
-            for body_part in self.walker_body.body.keys():
-                self.buffer[agent_id][body_part] = dict()
-                self.buffer[agent_id][body_part]["entropy"] = list()
-
-    def add_experience(self, agent_id, obs, actions, reward, done, log_probs, entropies):
+    def add_experience(self, agent_id, obs, actions, reward, done, log_probs):
         if len(self.buffer[agent_id]["obs"]) > len(self.buffer[agent_id]["next_obs"]):
             self.buffer[agent_id]["next_obs"].append(obs)
         self.buffer[agent_id]["obs"].append(obs)
         self.buffer[agent_id]["actions"].append(actions)
         self.buffer[agent_id]["rewards"].append(reward)
         self.buffer[agent_id]["dones"].append(done)
-
         self.buffer[agent_id]["log_probs"].append(log_probs)
-
-        # TODO: delete entropy
-        for body_part in self.walker_body.body.keys():
-            self.buffer[agent_id][body_part]["entropy"].append(entropies[body_part])
 
     def set_terminate_state(self, agent_id, obs, reward):
         self.buffer[agent_id]["next_obs"].append(obs)
