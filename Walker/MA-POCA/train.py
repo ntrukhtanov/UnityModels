@@ -93,6 +93,7 @@ def train(model_file, summary_dir, total_steps, buffer_size,
     memory = None
 
     agents_summary_rewards = dict()
+    total_rewards = list()
 
     pbar = tqdm(range(total_steps))
     pbar.update(n=step)
@@ -130,17 +131,14 @@ def train(model_file, summary_dir, total_steps, buffer_size,
                 agents_summary_rewards[agent_id] = summary_reward
 
         if ts.agent_id.shape[0] > 0:
-            summary_rewards = list()
             for agent_id in ts.agent_id:
                 idx = ts.agent_id_to_index[agent_id]
                 obs = torch.from_numpy(ts.obs[0][idx])
                 reward = ts.reward[idx]
                 memory.set_terminate_state(agent_id, obs, reward)
 
-                summary_rewards.append(agents_summary_rewards[agent_id] + reward)
+                total_rewards.append(agents_summary_rewards[agent_id] + reward)
                 agents_summary_rewards[agent_id] = 0.0
-
-            summary_writer.add_scalar("Total reward", statistics.mean(summary_rewards), step)
 
         env.step()
 
@@ -169,6 +167,11 @@ def train(model_file, summary_dir, total_steps, buffer_size,
                         advantages = returns.unsqueeze(1) - old_values_body_part
                         estimates[agent_id][body_part]["advantages"] = advantages.detach()
 
+            losses = list()
+            policy_losses = list()
+            value_losses = list()
+            value_body_losses = list()
+            entropies = list()
             for agent_id in memory.agent_ids:
                 batch = memory.sample(agent_id, device)
                 body_part_names = list(walker_body.body.keys())
@@ -200,16 +203,24 @@ def train(model_file, summary_dir, total_steps, buffer_size,
                             - BETA * torch.mean(entropy)
                     )
 
-                    summary_writer.add_scalar("loss", loss.item(), step)
-                    summary_writer.add_scalar("policy_loss", policy_loss.item(), step)
-                    summary_writer.add_scalar("value_loss", value_loss.item(), step)
-                    summary_writer.add_scalar("value_body_loss", value_body_loss.item(), step)
-                    summary_writer.add_scalar("entropy", torch.mean(entropy).item(), step)
+                    losses.append(loss.item())
+                    policy_losses.append(policy_loss.item())
+                    value_losses.append(value_loss.item())
+                    value_body_losses.append(value_body_loss.item())
+                    entropies.append(torch.mean(entropy).item())
 
                     optimizer.zero_grad()
                     loss.backward()
 
                     optimizer.step()
+
+            summary_writer.add_scalar("loss", statistics.mean(losses), step)
+            summary_writer.add_scalar("policy_loss", statistics.mean(policy_losses), step)
+            summary_writer.add_scalar("value_loss", statistics.mean(value_losses), step)
+            summary_writer.add_scalar("value_body_loss", statistics.mean(value_body_losses), step)
+            summary_writer.add_scalar("entropy", statistics.mean(entropies), step)
+            summary_writer.add_scalar("Total reward", statistics.mean(total_rewards), step)
+            total_rewards.clear()
 
             memory.reset()
 
@@ -229,6 +240,8 @@ def train(model_file, summary_dir, total_steps, buffer_size,
 
 
 def run():
+    # -buffer_size 32 -total_steps 30000000 -model_file ./Unity/Walker -summary_dir /home/tnv/tensorboard -save_path /home/tnv/tempModel -save_freq 10000 -restore /home/tnv/tempModel/model_10.pt
+
     args = sys.argv
 
     if '-summary_dir' in args:
