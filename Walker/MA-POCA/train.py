@@ -28,7 +28,8 @@ EPSILON = 0.2
 BETA = 0.01
 
 
-def train(summary_dir, total_steps, buffer_size):
+def train(model_file, summary_dir, total_steps, buffer_size):
+    assert model_file is not None, f"Не указан обязательный параметр model_file"
     assert summary_dir is not None, f"Не указан обязательный параметр summary_dir"
     assert total_steps is not None, f"Не указан обязательный параметр total_steps"
     assert buffer_size is not None, f"Не указан обязательный параметр buffer_size"
@@ -56,7 +57,7 @@ def train(summary_dir, total_steps, buffer_size):
 
     optimizer = torch.optim.Adam(params, lr=0.0003)
 
-    env = UnityEnvironment("./Unity/Walker", worker_id=1, no_graphics=True)
+    env = UnityEnvironment(model_file, worker_id=1, no_graphics=True)
     #env = UnityEnvironment("/home/tnv/tempWalker/Walker", no_graphics=False)
     env.reset()
     behavior_name = None
@@ -207,7 +208,14 @@ def run():
     else:
         buffer_size = None
 
-    train(summary_dir=summary_dir,
+    if '-model_file' in args:
+        idx = args.index('-model_file')
+        model_file = args[idx + 1]
+    else:
+        model_file = None
+
+    train(model_file=model_file,
+          summary_dir=summary_dir,
           total_steps=total_steps,
           buffer_size=buffer_size)
 
