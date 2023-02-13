@@ -19,8 +19,10 @@ class MultiAgentNetworkBody(nn.Module):
 
         for body_part, body_part_prop in walker_body.body.items():
             self.obs_encoders[body_part] = EntityEmbedding(body_part_prop.input_dim, EMBEDDING_SIZE)
+            self.add_module(f"obs_encoder_{body_part}", self.obs_encoders[body_part])
             self.obs_action_encoders[body_part] = EntityEmbedding(
                 body_part_prop.input_dim + body_part_prop.output_dim, EMBEDDING_SIZE)
+            self.add_module(f"obs_action_encoder_{body_part}", self.obs_action_encoders[body_part])
 
         self.self_attn = ResidualSelfAttention(EMBEDDING_SIZE)
 

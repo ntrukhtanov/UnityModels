@@ -17,7 +17,6 @@ class ActorModel(nn.Module):
             nn.Linear(body_part_properties.hidden_dim, body_part_properties.output_dim)
         )
 
-        # TODO: пронаблюдать, что обучается
         self.log_sigma = nn.Parameter(
             torch.zeros(1, body_part_properties.output_dim, requires_grad=True)
         )
