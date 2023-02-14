@@ -10,22 +10,35 @@ EMBEDDING_SIZE = 128  # в оригинале 256
 
 class MultiAgentNetworkBody(nn.Module):
     def __init__(self, walker_body, hidden_size):
+        """
+        Модель критика для нескольких агентов
+        :param walker_body: описание структуры тела агента Walker
+        :param hidden_size: размер скрытого слоя для выходного энкодера
+        """
         super().__init__()
 
         self.walker_body = walker_body
 
+        # Пройдем по всем частям тела агента и проинициализируем модель, которая обучает соответствующий embedding.
+        # В общем случае то позволит подать на вход критика разнородных агентов.
+        # В нашем случае разнородные агенты - это части тела агента.
+        # Нам потребуется по два эмбединга на каждую часть тела,
+        # т.к. алгоритм подразумевает кодирование наблюдений агентов без действий и с действиями.
         self.obs_encoders = dict()
         self.obs_action_encoders = dict()
-
         for body_part, body_part_prop in walker_body.body.items():
+            # создаем модель эмбединга для текущей части тела с входом только для наблюдений
             self.obs_encoders[body_part] = EntityEmbedding(body_part_prop.input_dim, EMBEDDING_SIZE)
             self.add_module(f"obs_encoder_{body_part}", self.obs_encoders[body_part])
+            # создаем модель эмбединга для текущей части тела с входом для наблюдений + действий
             self.obs_action_encoders[body_part] = EntityEmbedding(
                 body_part_prop.input_dim + body_part_prop.output_dim, EMBEDDING_SIZE)
             self.add_module(f"obs_action_encoder_{body_part}", self.obs_action_encoders[body_part])
 
+        # инициализируем модель, реализующую механизм внимания
         self.self_attn = ResidualSelfAttention(EMBEDDING_SIZE)
 
+        # инициализируем модель из полносвязных слоев, которая будет являться выходом данной модели
         self.linear_encoder = LinearEncoder(EMBEDDING_SIZE, 2, hidden_size)
 
     def forward(self, batch, body_part):
