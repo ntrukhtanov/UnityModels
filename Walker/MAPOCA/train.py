@@ -175,7 +175,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size,
                     # на вход модели подаем все пространство наблюдений
                     # это логично, потому что для решения о том, какое действие предпринять, например, ноге,
                     # нужно знать состояние других частей тела
-                    actions, log_prob, _ = body_part_model.forward_with_stat(input_data)
+                    actions, log_prob = body_part_model.forward(input_data)
 
                 # сохраняем полученные действия в общий массив действий агента на позиции,
                 # которые соответствуют данной части тела
