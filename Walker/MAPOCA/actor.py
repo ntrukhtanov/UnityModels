@@ -33,15 +33,28 @@ class ActorModel(nn.Module):
             torch.zeros(1, body_part_properties.output_dim, requires_grad=True)
         )
 
+        # параметр для хранения максимальных значений для каждой фичи с целью нормализации данных
         self.norm_values = nn.Parameter(
             torch.ones(1, input_dim, requires_grad=False)
         )
         self.norm_values.requires_grad_(False)
 
     def normalize_input(self, input_data):
+        """
+        Функция нормализации данных
+        :param input_data: Входные данные для нормализации
+        :return: Нормализованные данные
+        """
+
+        # Определим максимальные по модулю значения для каждой фичи в батче
         max_values = torch.max(torch.abs(input_data), dim=0).values
+
+        # если параметр norm_values содержит меньшее значение, то заменим на большее
         self.norm_values.data = torch.max(self.norm_values.data, max_values)
+
+        # выполним нормализацию
         input_data = input_data / self.norm_values.data
+
         return input_data
 
 
