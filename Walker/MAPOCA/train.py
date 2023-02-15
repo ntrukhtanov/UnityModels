@@ -275,7 +275,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size,
                         returns = calc_returns(batch[body_part]["rewards"], batch[body_part]["dones"], old_values_full,
                                                GAMMA,
                                                LAM, values_next)
-                        estimates[agent_id][body_part]["returns"] = returns.detach()
+                        estimates[agent_id][body_part]["returns"] = returns.unsqueeze(1).detach()
 
                         # вычислим значения функции преимущества
                         advantages = returns.unsqueeze(1) - old_values_body_part
