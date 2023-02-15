@@ -32,7 +32,7 @@ EPSILON = 0.2
 BETA = 0.01
 
 
-def train(walker_env_path, summary_dir, total_steps, buffer_size,
+def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, iter_count,
           save_path=None, save_freq=None, restore_path=None, cloud_path=None):
     """
     Функция обучения модели.
@@ -40,6 +40,8 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size,
     :param summary_dir: Путь к папке tensorboard
     :param total_steps: Количество шагов обучения
     :param buffer_size: Размер буфера для хранения траекторий агентов и расчитываемых перемнных
+    :param batch_size: Размер батча для обучения
+    :param iter_count: Количество прогонов обучения для каждого батча
     :param save_path: Путь к папке, куда сохраняются модели, для последующего восстановления
     :param save_freq: Частота сохранения модели (каждые save_freq шагов)
     :param restore_path: Путь к файлу модели для восстановления
@@ -50,6 +52,8 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size,
     assert summary_dir is not None, f"Не указан обязательный параметр summary_dir"
     assert total_steps is not None, f"Не указан обязательный параметр total_steps"
     assert buffer_size is not None, f"Не указан обязательный параметр buffer_size"
+    assert batch_size is not None, f"Не указан обязательный параметр batch_size"
+    assert iter_count is not None, f"Не указан обязательный параметр iter_count"
 
     # Установим состояния генераторов псевдослучайных чисел для воспризводимости и сравнимости результатов
     random.seed(RANDOM_SEED)
@@ -240,12 +244,9 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size,
 
         # если буфер траекторий агентов наполнился, то начинаем обучать модель
         if memory.batch_is_full():
-            # сначала вычислим необходимые переменные на текущей модели
+            # сначала вычислим необходимые переменные на текущей модели и добавим их в память
             # эти значения потребуются для вычисления функций потерь во время обучения
-            estimates = dict()
             for agent_id in memory.agent_ids:
-                estimates[agent_id] = dict()
-
                 # получим батч с данными для текущего агента
                 batch = memory.sample(agent_id, device)
 
@@ -255,31 +256,35 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size,
                     # будем выполнять вычисления для каждой части тела агента по отдельности
                     # так как если бы это были отдельные агенты, принадлежащие одной команде
                     with torch.no_grad():
-                        estimates[agent_id][body_part] = dict()
-
                         # вычислим значения модели критика на основании наблюдений всех частей тела, без учета действий
                         old_values_full = critic_model.critic_full(batch)
-                        estimates[agent_id][body_part]["old_values_full"] = old_values_full.detach()
+                        memory.add_calculated_values(agent_id, body_part, "old_values_full", old_values_full.detach())
 
                         # вычислим значения модели критика на основании наблюдений всех частей тела,
                         # с учетом действий частей тела отличных от текущего
                         old_values_body_part = critic_model.critic_body_part(batch, body_part)
-                        estimates[agent_id][body_part]["old_values_body_part"] = old_values_body_part.detach()
+                        memory.add_calculated_values(agent_id, body_part, "old_values_body_part",
+                                                     old_values_body_part.detach())
 
                         # вычислим значения модели критика на основании последних в траектории наблюдений
                         # всех частей тела, без учета действий
                         values_next = critic_model.critic_full(last_data)
-                        estimates[agent_id][body_part]["values_next"] = values_next.detach()
+                        memory.add_calculated_values(agent_id, body_part, "values_next", values_next.detach())
 
                         # вычислим дисконтированные вознаграждения с учетом значений модели критика
                         returns = calc_returns(batch[body_part]["rewards"], batch[body_part]["dones"], old_values_full,
                                                GAMMA,
                                                LAM, values_next)
-                        estimates[agent_id][body_part]["returns"] = returns.unsqueeze(1).detach()
+                        returns = returns.unsqueeze(1)
+
+                        memory.add_calculated_values(agent_id, body_part, "returns", returns.detach())
 
                         # вычислим значения функции преимущества
-                        advantages = returns.unsqueeze(1) - old_values_body_part
-                        estimates[agent_id][body_part]["advantages"] = advantages.detach()
+                        advantages = returns - old_values_body_part
+                        memory.add_calculated_values(agent_id, body_part, "advantages", advantages.detach())
+
+            # после того как все данные для обучения подготовлены, можно выполнить перемешивание данных
+
 
             # обучение модели
             # инициализируем списки для промежуточного хранения значений функций потерь
@@ -425,6 +430,18 @@ def run():
     else:
         buffer_size = None
 
+    if '-batch_size' in args:
+        idx = args.index('-batch_size')
+        batch_size = int(args[idx + 1])
+    else:
+        batch_size = None
+
+    if '-iter_count' in args:
+        idx = args.index('-iter_count')
+        iter_count = int(args[idx + 1])
+    else:
+        iter_count = None
+
     if '-walker_env_path' in args:
         idx = args.index('-walker_env_path')
         walker_env_path = args[idx + 1]
@@ -459,6 +476,8 @@ def run():
           summary_dir=summary_dir,
           total_steps=total_steps,
           buffer_size=buffer_size,
+          batch_size=batch_size,
+          iter_count=iter_count,
           save_path=save_path,
           save_freq=save_freq,
           restore_path=restore_path,

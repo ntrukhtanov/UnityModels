@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from torch.utils.data import TensorDataset, DataLoader
 
 
 class ExperienceBuffer:
@@ -39,23 +40,31 @@ class ExperienceBuffer:
             self.buffer[agent_id]["rewards"][last_idx] = reward
             self.buffer[agent_id]["dones"][last_idx] = True
 
+    def add_calculated_values(self, agent_id, body_part, key, data):
+        if body_part not in self.buffer[agent_id].keys():
+            self.buffer[agent_id][body_part] = dict()
+        self.buffer[agent_id][body_part][key] = data
+
+    def create_train_data_loaders(self):
+        for body_part, body_part_prop in self.walker_body.body.items():
+
     def sample(self, agent_id, device):
         buffer = dict()
         for body_part, body_part_prop in self.walker_body.body.items():
             buffer[body_part] = dict()
-            buffer[body_part]["full_obs"] = torch.stack(self.buffer[agent_id]["obs"][:self.buffer_size - 1], dim=0).to(
+            buffer[body_part]["full_obs"] = torch.stack(self.buffer[agent_id]["obs"][:self.buffer_size], dim=0).to(
                 device)
-            buffer[body_part]["obs"] = torch.stack(self.buffer[agent_id]["obs"][:self.buffer_size - 1], dim=0)[:,
+            buffer[body_part]["obs"] = torch.stack(self.buffer[agent_id]["obs"][:self.buffer_size], dim=0)[:,
                                        body_part_prop.obs_space_idxs].to(
                 device)
             buffer[body_part]["actions"] = torch.stack(
-                self.buffer[agent_id]["actions"][:self.buffer_size - 1], dim=0)[:, body_part_prop.action_space_idxs].to(
+                self.buffer[agent_id]["actions"][:self.buffer_size], dim=0)[:, body_part_prop.action_space_idxs].to(
                 device)
-            buffer[body_part]["rewards"] = torch.Tensor(self.buffer[agent_id]["rewards"][:self.buffer_size - 1]).to(
+            buffer[body_part]["rewards"] = torch.Tensor(self.buffer[agent_id]["rewards"][:self.buffer_size]).to(
                 device)
-            buffer[body_part]["dones"] = torch.Tensor(self.buffer[agent_id]["dones"][:self.buffer_size - 1]).to(device)
+            buffer[body_part]["dones"] = torch.Tensor(self.buffer[agent_id]["dones"][:self.buffer_size]).to(device)
             buffer[body_part]["log_probs"] = torch.stack(
-                self.buffer[agent_id]["log_probs"][:self.buffer_size - 1], dim=0)[:,body_part_prop.action_space_idxs].to(
+                self.buffer[agent_id]["log_probs"][:self.buffer_size], dim=0)[:,body_part_prop.action_space_idxs].to(
                 device)
         return buffer
 
@@ -63,17 +72,17 @@ class ExperienceBuffer:
         buffer = dict()
         for body_part, body_part_prop in self.walker_body.body.items():
             buffer[body_part] = dict()
-            if self.buffer[agent_id]["dones"][self.buffer_size-2]:
-                buffer[body_part]["obs"] = torch.stack([self.buffer[agent_id]["next_obs"][self.buffer_size - 2]],
+            if self.buffer[agent_id]["dones"][self.buffer_size - 1]:
+                buffer[body_part]["obs"] = torch.stack([self.buffer[agent_id]["next_obs"][self.buffer_size - 1]],
                                                        dim=0)[:, body_part_prop.obs_space_idxs].to(device)
             else:
-                buffer[body_part]["obs"] = torch.stack([self.buffer[agent_id]["obs"][self.buffer_size - 1]], dim=0)[:,
+                buffer[body_part]["obs"] = torch.stack([self.buffer[agent_id]["obs"][self.buffer_size]], dim=0)[:,
                                            body_part_prop.obs_space_idxs].to(device)
         return buffer
 
     def batch_is_full(self):
         for agent_id in self.agent_ids:
-            if len(self.buffer[agent_id]["actions"]) < self.buffer_size:
+            if len(self.buffer[agent_id]["actions"]) < self.buffer_size + 1:
                 return False
         return True
 
