@@ -10,7 +10,7 @@ class ResidualSelfAttention(torch.nn.Module):
         """
         super().__init__()
 
-        # Инициализируем объект MultiheadAttention/
+        # Инициализируем объект MultiheadAttention
         # Параметр num_heads подбираем экспериментально.
         # Размер эмбединга должен делиться на num_heads без остатка
         self.num_heads = 4
