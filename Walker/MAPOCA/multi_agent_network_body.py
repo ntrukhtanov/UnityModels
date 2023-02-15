@@ -28,11 +28,11 @@ class MultiAgentNetworkBody(nn.Module):
         self.obs_action_encoders = dict()
         for body_part, body_part_prop in walker_body.body.items():
             # создаем модель эмбединга для текущей части тела с входом только для наблюдений
-            self.obs_encoders[body_part] = EntityEmbedding(body_part_prop.input_dim, EMBEDDING_SIZE)
+            self.obs_encoders[body_part] = EntityEmbedding(body_part_prop.input_dim, 0, EMBEDDING_SIZE)
             self.add_module(f"obs_encoder_{body_part}", self.obs_encoders[body_part])
             # создаем модель эмбединга для текущей части тела с входом для наблюдений + действий
             self.obs_action_encoders[body_part] = EntityEmbedding(
-                body_part_prop.input_dim + body_part_prop.output_dim, EMBEDDING_SIZE)
+                body_part_prop.input_dim, body_part_prop.output_dim, EMBEDDING_SIZE)
             self.add_module(f"obs_action_encoder_{body_part}", self.obs_action_encoders[body_part])
 
         # инициализируем модель, реализующую механизм внимания

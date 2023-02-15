@@ -33,6 +33,18 @@ class ActorModel(nn.Module):
             torch.zeros(1, body_part_properties.output_dim, requires_grad=True)
         )
 
+        self.norm_values = nn.Parameter(
+            torch.ones(1, input_dim, requires_grad=False)
+        )
+        self.norm_values.requires_grad_(False)
+
+    def normalize_input(self, input_data):
+        max_values = torch.max(torch.abs(input_data), dim=0).values
+        self.norm_values.data = torch.max(self.norm_values.data, max_values)
+        input_data = input_data / self.norm_values.data
+        return input_data
+
+
     def forward(self, input_data):
         """
         Функция прямого прохождения модели с вычислением статистики
@@ -42,7 +54,11 @@ class ActorModel(nn.Module):
         log_prob: значения логарифмов вероятностей действий
         entropy: энтропия
         """
-        mean = self.actor_body(input_data)
+        # выполним нормализацию данных
+        input_data_norm = self.normalize_input(input_data)
+
+        # результаты работы сети будем считать средним значением для нормального распределения
+        mean = self.actor_body(input_data_norm)
 
         # Здесь важный механизм выбора между исследованием среды и применением модели.
         # Вносим в вычисленные значения шум с дисперсией,
@@ -70,7 +86,11 @@ class ActorModel(nn.Module):
         :param actions: действия, которые были применены к данной части тела агента предыдущей моделью
         :return: возвращает значения логарфимов вероятностей действий и энтропию
         """
-        mean = self.actor_body(input_data)
+
+        # выполним нормализацию данных
+        input_data_norm = self.normalize_input(input_data)
+
+        mean = self.actor_body(input_data_norm)
         std = torch.exp(self.log_sigma)
 
         # инициализируем нормальное распределение
