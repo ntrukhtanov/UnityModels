@@ -16,8 +16,8 @@ class ResidualSelfAttention(torch.nn.Module):
         self.fc_v = nn.Linear(embedding_size, embedding_size)
         self.fc_out = nn.Linear(embedding_size, embedding_size)
 
-        self.embedding_norm = nn.LayerNorm(normalized_shape=embedding_size)
-        self.residual_norm = nn.LayerNorm(normalized_shape=embedding_size)
+        self.embedding_norm = nn.LayerNorm(normalized_shape=embedding_size, elementwise_affine=False)
+        self.residual_norm = nn.LayerNorm(normalized_shape=embedding_size, elementwise_affine=False)
 
     def forward(self, inp):
         inp = self.embedding_norm(inp)

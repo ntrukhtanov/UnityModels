@@ -3,7 +3,7 @@ from torch import nn
 
 from multi_agent_network_body import MultiAgentNetworkBody
 
-HIDDEN_SIZE = 128
+HIDDEN_SIZE = 64
 
 
 class CriticModel(nn.Module):

@@ -129,9 +129,10 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size,
     # объект памяти для хранения данных о траекториях агентов и рассчитываемых переменных
     memory = None
 
-    # буферы для промежуточного хранения информации о вознаграждениях агентов
-    agents_summary_rewards = dict()
-    total_rewards = list()
+    # буферы для промежуточного хранения информации о статистике агентов
+    agents_statistic = dict()
+    agents_total_rewards = list()
+    agents_lifetimes = list()
 
     # инициализируем объект tqdm для отображения прогресса обучения по шагам
     # немного не стандартная инициализация, нужна, чтобы начинать не с первого шага
@@ -206,10 +207,14 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size,
                                       actions=continious_actions[idx],
                                       reward=ds.reward[idx], done=False, log_probs=log_probs[idx])
 
-                # суммируем и сохраняем вознаграждения агента
-                summary_reward = agents_summary_rewards.get(agent_id, 0.0)
+                # суммируем и сохраняем статистику агента
+                agent_statistic = agents_statistic.get(agent_id, dict())
+                summary_reward = agent_statistic.get('summary_reward', 0.0)
                 summary_reward += ds.reward[idx]
-                agents_summary_rewards[agent_id] = summary_reward
+                agent_statistic['summary_reward'] = summary_reward
+                if 'start_step' not in agent_statistic.keys():
+                    agent_statistic['start_step'] = step
+                agents_statistic[agent_id] = agent_statistic
 
         # если есть агенты, для которых эпизод завершился
         if ts.agent_id.shape[0] > 0:
@@ -222,10 +227,13 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size,
                 memory.set_terminate_state(agent_id, obs, reward)
 
                 # добавляем суммарное вознаграждение в список, для последующего усреднения и отправки в tensorboard
-                total_rewards.append(agents_summary_rewards[agent_id] + reward)
+                agents_total_rewards.append(agents_statistic[agent_id]['summary_reward'] + reward)
 
-                # обнуляем вознаграждение для агента, т.к. эпизод для него закончен
-                agents_summary_rewards[agent_id] = 0.0
+                # добавляем количество шагов жизни агента, для последующего усреднения и отправки в tensorboard
+                agents_lifetimes.append(step - agents_statistic[agent_id]['start_step'])
+
+                # обнуляем статистику для агента, т.к. эпизод для него закончен
+                agents_statistic[agent_id] = dict()
 
         # просим среду Walker отработать наши действия
         env.step()
@@ -349,8 +357,12 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size,
             summary_writer.add_scalar("entropy", statistics.mean(entropies), step)
 
             # усредняем и отправляем усредненные суммарные вознаграждения в tensorboard
-            summary_writer.add_scalar("Total reward", statistics.mean(total_rewards), step)
-            total_rewards.clear()
+            summary_writer.add_scalar("Total reward", statistics.mean(agents_total_rewards), step)
+            agents_total_rewards.clear()
+
+            # усредняем и отправляем усредненные значения количества шагов жизни агента в tensorboard
+            summary_writer.add_scalar("Agents lifetimes", statistics.mean(agents_lifetimes), step)
+            agents_lifetimes.clear()
 
             # сбрасываем буфер траекторий, т.к. у нас on-policy алгоритм
             # и нам нужно накопить данные уже на основании только что обученной модели

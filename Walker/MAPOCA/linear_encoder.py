@@ -8,10 +8,10 @@ class LinearEncoder(nn.Module):
 
         layers = list()
         layers.append(nn.Linear(input_dim, hidden_size))
-        layers.append(nn.Sigmoid())
+        layers.append(nn.ReLU())
         for i in range(num_layers - 1):
             layers.append(nn.Linear(hidden_size, hidden_size))
-            layers.append(nn.Sigmoid())
+            layers.append(nn.ReLU())
 
         self.encoder = nn.Sequential(*layers)
 

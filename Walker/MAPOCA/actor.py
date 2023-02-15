@@ -24,7 +24,7 @@ class ActorModel(nn.Module):
         # которые должна определить модель для данной части тела агента
         self.actor_body = nn.Sequential(
             nn.Linear(input_dim, body_part_properties.hidden_dim),
-            nn.Sigmoid(),
+            nn.ReLU(),
             nn.Linear(body_part_properties.hidden_dim, body_part_properties.output_dim)
         )
 
