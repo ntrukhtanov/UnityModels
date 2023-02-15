@@ -43,7 +43,10 @@ class ExperienceBuffer:
         buffer = dict()
         for body_part, body_part_prop in self.walker_body.body.items():
             buffer[body_part] = dict()
-            buffer[body_part]["obs"] = torch.stack(self.buffer[agent_id]["obs"][:self.buffer_size - 1], dim=0).to(
+            buffer[body_part]["full_obs"] = torch.stack(self.buffer[agent_id]["obs"][:self.buffer_size - 1], dim=0).to(
+                device)
+            buffer[body_part]["obs"] = torch.stack(self.buffer[agent_id]["obs"][:self.buffer_size - 1], dim=0)[:,
+                                       body_part_prop.obs_space_idxs].to(
                 device)
             buffer[body_part]["actions"] = torch.stack(
                 self.buffer[agent_id]["actions"][:self.buffer_size - 1], dim=0)[:, body_part_prop.action_space_idxs].to(
@@ -61,9 +64,11 @@ class ExperienceBuffer:
         for body_part, body_part_prop in self.walker_body.body.items():
             buffer[body_part] = dict()
             if self.buffer[agent_id]["dones"][self.buffer_size-2]:
-                buffer[body_part]["obs"] = torch.stack([self.buffer[agent_id]["next_obs"][self.buffer_size-2]], dim=0).to(device)
+                buffer[body_part]["obs"] = torch.stack([self.buffer[agent_id]["next_obs"][self.buffer_size - 2]],
+                                                       dim=0)[:, body_part_prop.obs_space_idxs].to(device)
             else:
-                buffer[body_part]["obs"] = torch.stack([self.buffer[agent_id]["obs"][self.buffer_size - 1]], dim=0).to(device)
+                buffer[body_part]["obs"] = torch.stack([self.buffer[agent_id]["obs"][self.buffer_size - 1]], dim=0)[:,
+                                           body_part_prop.obs_space_idxs].to(device)
         return buffer
 
     def batch_is_full(self):

@@ -300,9 +300,9 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size,
 
                     # вычислим логарифмы вероятностей действий и энтропию для каждой части тела агента
                     # с помощью модели актора для соответствующей части тела
-                    obs = batch[body_part]["obs"]
+                    full_obs = batch[body_part]["full_obs"]
                     actions = batch[body_part]["actions"]
-                    log_probs, entropy = body_model[body_part].evaluate_actions(obs, actions)
+                    log_probs, entropy = body_model[body_part].evaluate_actions(full_obs, actions)
 
                     # вычислим значения модели критика на основании наблюдений всех частей тела, без учета действий
                     values_full = critic_model.critic_full(batch)
