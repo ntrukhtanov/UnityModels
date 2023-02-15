@@ -5,7 +5,7 @@ from linear_encoder import LinearEncoder
 from entity_embedding import EntityEmbedding
 from attention import ResidualSelfAttention
 
-EMBEDDING_SIZE = 64  # в оригинале 256
+EMBEDDING_SIZE = 64
 
 
 class MultiAgentNetworkBody(nn.Module):
