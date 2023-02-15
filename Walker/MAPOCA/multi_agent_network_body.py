@@ -42,34 +42,60 @@ class MultiAgentNetworkBody(nn.Module):
         self.linear_encoder = LinearEncoder(EMBEDDING_SIZE, 1, hidden_size)
 
     def forward(self, batch, body_part):
+        """
+        Функция прямого прохождения модели критика для нескольких агентов
+        :param batch: батч с данными
+        :param body_part: часть тела агента для которой выполняются вычисления.
+        Может быть None для вычисления функции потерь без учета действий других частей тела агента.
+        :return: Возвращает значения модели критика для нескольких агентов
+        """
+
+        # список, в котором собираем результаты работы энкодеров, для дальнейшей обработки с помощью механизма внимания
         self_attn_inputs = list()
 
         if body_part is None:
+            # вычисляем результаты работы энкодеров на основании наблюдений всех частей тела, без учета действий
             all_encoded_obs = list()
             for body_part in self.walker_body.body.keys():
+                # Для каждой части тела свой энкодер наблюдений, т.к. наблюдения имеют разную размерность
+                # и части тела выполняют разные функции.
                 all_encoded_obs.append(self.obs_encoders[body_part](batch[body_part]["obs"]))
+
+            # собираем все в один тензор и добавляем в список для механизма внимания
             all_encoded_obs = torch.stack(all_encoded_obs, dim=1)
             self_attn_inputs.append(all_encoded_obs)
         else:
+            # Вычислим результаты работы энкодеров на основании наблюдения текущей части тела (параметр body_part)
+            # без учета его действий,
+            # и на основании наблюдений всех остальных частей тела, с учетом их действий
+
+            # вычисляем энкодер для текущй части тела и добавляем в список на вход механизма внимания
             encoded_obs = self.obs_encoders[body_part](batch[body_part]["obs"])
             encoded_obs = torch.stack([encoded_obs], dim=1)
             self_attn_inputs.append(encoded_obs)
 
+            # проходим по всем частям тела кроме текущей и вычисляем энкодеры с учетом их действий
             encoded_obs_with_actions = list()
             for other_body_part in self.walker_body.body.keys():
                 if other_body_part != body_part:
                     obs = batch[other_body_part]["obs"]
                     actions = batch[other_body_part]["actions"]
+                    # объединяем наблюдения и действия в один тензор
                     obs_with_actions = torch.cat([obs, actions], dim=1)
+
+                    # для каждой части тела свой отдельный энкодер,
+                    # т.к. пространства наблюдений и действий разнородны и функции частей тела различны
                     encoded_obs_with_actions.append(self.obs_action_encoders[other_body_part](obs_with_actions))
             encoded_obs_with_actions = torch.stack(encoded_obs_with_actions, dim=1)
             self_attn_inputs.append(encoded_obs_with_actions)
 
+        # собираем все результаты работы энкодеров в один тензор и отправляем на вход механизма внимания
         encoded_entity = torch.cat(self_attn_inputs, dim=1)
         encoded_state = self.self_attn(encoded_entity)
 
         # TODO: здесь нужно добавить количество агентов, на первом этапе не делаем
-
+        # результаты работы механизма внимания прогоняем через полносвязную сеть
+        # для выичсления результатов работы модели критика для нескольких агентов
         encoding = self.linear_encoder(encoded_state)
 
         return encoding
