@@ -4,31 +4,55 @@ from torch import nn
 
 class ResidualSelfAttention(torch.nn.Module):
     def __init__(self, embedding_size):
+        """
+        Модель механизма внимания, основанного на nn.MultiheadAttention ( https://arxiv.org/abs/1706.03762 )
+        :param embedding_size: размер эмбедингов
+        """
         super().__init__()
 
-        # TODO: разобраться с MultiheadAttention и с параметром num_heads
+        # Инициализируем объект MultiheadAttention/
+        # Параметр num_heads подбираем экспериментально.
+        # Размер эмбединга должен делиться на num_heads без остатка
         self.num_heads = 4
+        self.attention = nn.MultiheadAttention(embed_dim=embedding_size, num_heads=self.num_heads, batch_first=True)
 
-        self.attention = nn.MultiheadAttention(embed_dim=embedding_size, num_heads=self.num_heads)
-
+        # полносвязный слой для вычисления query embedding
         self.fc_q = nn.Linear(embedding_size, embedding_size)
+
+        # полносвязный слой для вычисления key embedding
         self.fc_k = nn.Linear(embedding_size, embedding_size)
+
+        # полносвязный слой для вычисления value embedding
         self.fc_v = nn.Linear(embedding_size, embedding_size)
+
+        # полносвязный слой для вычисления результатов работы модели
         self.fc_out = nn.Linear(embedding_size, embedding_size)
 
+        # слой для нормализции эмбедингов
         self.embedding_norm = nn.LayerNorm(normalized_shape=embedding_size, elementwise_affine=False)
+
+        # слой для нормализции результатов сложения выхода механизма внимания и входных эмбедингов
         self.residual_norm = nn.LayerNorm(normalized_shape=embedding_size, elementwise_affine=False)
 
     def forward(self, inp):
+        """
+        Функция прямого прохождения модели внимания
+        :param inp: входные эмбединги
+        :return: результат работы модели
+        """
+
+        # выполним нормализацию эмбеддингов
         inp = self.embedding_norm(inp)
 
+        # вычислим значения эмбеддингов для параметров query, key, value
         query = self.fc_q(inp)
         key = self.fc_k(inp)
         value = self.fc_v(inp)
 
-        output, _ = self.attention(query, key, value)
+        output, _ = self.attention(query=query, key=key, value=value)
 
         # Residual
+        # Складываем поэлементно результаты работы механизма внимания входные эмбеддинги и выполняем нормализацию
         output = self.fc_out(output) + inp
         output = self.residual_norm(output)
 
@@ -38,6 +62,7 @@ class ResidualSelfAttention(torch.nn.Module):
         #denominator = torch.sum(1 - mask, dim=1, keepdim=True) + self.EPSILON
         #output = numerator / denominator
 
+        # т.к. пока масок нет просто усредняем
         output = torch.mean(output, dim=1)
 
         return output
