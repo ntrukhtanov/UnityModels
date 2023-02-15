@@ -327,7 +327,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size,
                             - BETA * torch.mean(entropy)
                     )
 
-                    # сохраняем значения функции потреь для статистики
+                    # сохраняем значения функции потерь для статистики
                     losses.append(loss.item())
                     policy_losses.append(policy_loss.item())
                     value_losses.append(value_loss.item())
