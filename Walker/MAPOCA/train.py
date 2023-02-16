@@ -233,7 +233,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
             with torch.no_grad():
                 # вычислим значения модели критика на основании наблюдений всех частей тела агента, без учета их действий
                 common_values = critic_model.critic_common(batch)
-                memory.add_common_values(common_values)
+                memory.add_common_values(common_values.cpu())
 
                 # вычислим значения модели критика на основании наблюдений всех частей тела,
                 # с учетом действий частей тела отличных от текущего
@@ -241,7 +241,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
                 # так как если бы это были отдельные агенты, принадлежащие одной команде
                 for body_part in walker_body.body.keys():
                     values_body_part = critic_model.critic_body_part(batch, body_part)
-                    memory.add_body_part_values(body_part, values_body_part)
+                    memory.add_body_part_values(body_part, values_body_part.cpu())
 
         # если есть агенты, для которых эпизод завершился
         if ts.agent_id.shape[0] > 0:
@@ -339,19 +339,19 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
 
                         # рассчитаем функции потерь для модели критика, используя значения,
                         # полученные с помощью старой модели и с помощью текущей модели
-                        value_loss = calc_value_loss(common_values, old_common_values, returns, EPSILON)
-                        value_body_loss = calc_value_loss(body_part_values, old_body_part_values, returns, EPSILON)
+                        value_loss = calc_value_loss(common_values.cpu(), old_common_values, returns, EPSILON)
+                        value_body_loss = calc_value_loss(body_part_values.cpu(), old_body_part_values, returns, EPSILON)
 
                         # рассчитаем функцию потерь для актора текущей части тела на основании рассчитанных
                         # с помощью старой модели значений переменных преимущества и логарифмов вероятностей действий,
                         # и рассчитанных с помощью текущей модели значений логарифмов вероятностей действий
-                        policy_loss = calc_policy_loss(advantages, log_probs, old_log_probs, EPSILON)
+                        policy_loss = calc_policy_loss(advantages, log_probs.cpu(), old_log_probs, EPSILON)
 
                         # суммируем все функции потерь в одну
                         loss = (
                                 policy_loss
                                 + 0.5 * (value_loss + 0.5 * value_body_loss)
-                                - BETA * torch.mean(entropy)
+                                - BETA * torch.mean(entropy.cpu())
                         )
 
                         # сохраняем значения функции потерь для статистики
