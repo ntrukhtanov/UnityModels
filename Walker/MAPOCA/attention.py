@@ -14,7 +14,7 @@ class ResidualSelfAttention(torch.nn.Module):
         # Параметр num_heads подбираем экспериментально.
         # Размер эмбединга должен делиться на num_heads без остатка
         self.num_heads = 4
-        self.attention = nn.MultiheadAttention(embed_dim=embedding_size, num_heads=self.num_heads, batch_first=True)
+        self.attention = nn.MultiheadAttention(embed_dim=embedding_size, num_heads=self.num_heads)
 
         # полносвязный слой для вычисления query embedding
         self.fc_q = nn.Linear(embedding_size, embedding_size)
@@ -40,6 +40,9 @@ class ResidualSelfAttention(torch.nn.Module):
         :param inp: входные эмбединги
         :return: результат работы модели
         """
+        # выполним перестановку N и L, потому что параметр batch_first для nn.MultiheadAttention отсутствует
+        # в более ранних версиях torch, которую требует библиотека mlagents
+        inp = torch.permute(inp, (1, 0, 2))
 
         # выполним нормализацию эмбеддингов
         inp = self.embedding_norm(inp)
@@ -63,6 +66,6 @@ class ResidualSelfAttention(torch.nn.Module):
         #output = numerator / denominator
 
         # т.к. пока масок нет просто усредняем
-        output = torch.mean(output, dim=1)
+        output = torch.mean(output, dim=0)
 
         return output
