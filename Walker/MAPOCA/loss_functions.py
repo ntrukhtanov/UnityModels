@@ -36,7 +36,7 @@ def calc_value_loss(values, old_values, returns, epsilon):
     )
     v_opt_a = (returns - values) ** 2
     v_opt_b = (returns - clipped_value_estimate) ** 2
-    loss = torch.mean(torch.min(v_opt_a, v_opt_b))
+    loss = torch.mean(torch.max(v_opt_a, v_opt_b))
     return loss
 
 
