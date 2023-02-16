@@ -10,6 +10,7 @@ from tqdm import tqdm
 import statistics
 import os
 import traceback
+import math
 
 from body_parts import WalkerBody
 from body_parts import BodyPartProperties
@@ -54,6 +55,9 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
     assert buffer_size is not None, f"Не указан обязательный параметр buffer_size"
     assert batch_size is not None, f"Не указан обязательный параметр batch_size"
     assert iter_count is not None, f"Не указан обязательный параметр iter_count"
+
+    # размер буфера должен делиться на размер батча без остатка
+    buffer_size = math.ceil(buffer_size / batch_size) * batch_size
 
     # Установим состояния генераторов псевдослучайных чисел для воспризводимости и сравнимости результатов
     random.seed(RANDOM_SEED)
@@ -114,7 +118,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
     # инициализируем среду Walker без графического представления для скорости
     env = UnityEnvironment(walker_env_path, worker_id=1, no_graphics=True)
 
-    # сбрасываем среду в начальное состояение
+    # сбрасываем среду в начальное состояние
     env.reset()
 
     # определяем значение ключа behavior_name, по нему будем получать данные о среде
@@ -144,9 +148,9 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
     pbar = tqdm(range(total_steps))
     pbar.update(n=step)
     while step < total_steps:
-        # получаем из среды Walker
-        # ds содержит данные об агентах, которые требуют указания действий для следующего шага
-        # ts содержит данные об агентах, которые достигли конца эпизода
+        # получаем данные из среды Walker:
+        # ds - содержит данные об агентах, которые требуют указания действий для следующего шага
+        # ts - содержит данные об агентах, которые достигли конца эпизода
         ds, ts = env.get_steps(behavior_name)
 
         # если есть агенты, требующие решения о следующих действиях
@@ -209,7 +213,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
                 # log_probs: логарифмы вероятностей действий агента
                 memory.add_experience(agent_id=agent_id, obs=torch.from_numpy(ds.obs[0][idx]),
                                       actions=continious_actions[idx],
-                                      reward=ds.reward[idx], done=False, log_probs=log_probs[idx])
+                                      reward=ds.reward[idx], log_probs=log_probs[idx])
 
                 # суммируем и сохраняем статистику агента
                 agent_statistic = agents_statistic.get(agent_id, dict())
@@ -219,6 +223,24 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
                 if 'start_step' not in agent_statistic.keys():
                     agent_statistic['start_step'] = step
                 agents_statistic[agent_id] = agent_statistic
+
+            # Для новой порции данных вычисляем значения модели критика.
+            # Эти значения понадобятся для расчета функции потерь.
+
+            # Сформируем батч из последних значений траекторий агентов
+            batch = memory.get_last_record_batch(device)
+            with torch.no_grad():
+                # вычислим значения модели критика на основании наблюдений всех частей тела агента, без учета их действий
+                common_values = critic_model.critic_common(batch)
+                memory.add_common_values(common_values)
+
+                # вычислим значения модели критика на основании наблюдений всех частей тела,
+                # с учетом действий частей тела отличных от текущего
+                # будем выполнять вычисления для каждой части тела агента по отдельности таким образом,
+                # так как если бы это были отдельные агенты, принадлежащие одной команде
+                for body_part in walker_body.body.keys():
+                    values_body_part = critic_model.critic_body_part(batch, body_part)
+                    memory.add_body_part_values(body_part, values_body_part)
 
         # если есть агенты, для которых эпизод завершился
         if ts.agent_id.shape[0] > 0:
@@ -243,48 +265,32 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
         env.step()
 
         # если буфер траекторий агентов наполнился, то начинаем обучать модель
-        if memory.batch_is_full():
+        if memory.buffer_is_full():
             # сначала вычислим необходимые переменные на текущей модели и добавим их в память
             # эти значения потребуются для вычисления функций потерь во время обучения
             for agent_id in memory.agent_ids:
-                # получим батч с данными для текущего агента
-                batch = memory.sample(agent_id, device)
+                common_values = torch.Tensor(memory.buffer[agent_id]["common_values"])
 
-                # получим самые последние значения из траектории текущего агента
-                last_data = memory.get_last_data(agent_id, device)
+                # вычислим дисконтированные вознаграждения с учетом ранее вычисленных значений модели критика
+                rewards = torch.Tensor(memory.buffer[agent_id]["rewards"])[:buffer_size]
+                dones = torch.Tensor(memory.buffer[agent_id]["dones"])[:buffer_size]
+                returns = calc_returns(rewards=rewards,
+                                       dones=dones,
+                                       values=common_values[:buffer_size],
+                                       gamma=GAMMA,
+                                       lam=LAM,
+                                       value_next=common_values[buffer_size])
+                returns = returns.unsqueeze(1)
+
+                # добавим их в буфер для последующего расчета функции потерь
+                memory.add_returns(agent_id, returns)
+
+                # вычислим значения функции преимущества отдельно для каждой части тела агента и добавим в буфер
                 for body_part in walker_body.body.keys():
-                    # будем выполнять вычисления для каждой части тела агента по отдельности
-                    # так как если бы это были отдельные агенты, принадлежащие одной команде
-                    with torch.no_grad():
-                        # вычислим значения модели критика на основании наблюдений всех частей тела, без учета действий
-                        old_values_full = critic_model.critic_full(batch)
-                        memory.add_calculated_values(agent_id, body_part, "old_values_full", old_values_full.detach())
-
-                        # вычислим значения модели критика на основании наблюдений всех частей тела,
-                        # с учетом действий частей тела отличных от текущего
-                        old_values_body_part = critic_model.critic_body_part(batch, body_part)
-                        memory.add_calculated_values(agent_id, body_part, "old_values_body_part",
-                                                     old_values_body_part.detach())
-
-                        # вычислим значения модели критика на основании последних в траектории наблюдений
-                        # всех частей тела, без учета действий
-                        values_next = critic_model.critic_full(last_data)
-                        memory.add_calculated_values(agent_id, body_part, "values_next", values_next.detach())
-
-                        # вычислим дисконтированные вознаграждения с учетом значений модели критика
-                        returns = calc_returns(batch[body_part]["rewards"], batch[body_part]["dones"], old_values_full,
-                                               GAMMA,
-                                               LAM, values_next)
-                        returns = returns.unsqueeze(1)
-
-                        memory.add_calculated_values(agent_id, body_part, "returns", returns.detach())
-
-                        # вычислим значения функции преимущества
-                        advantages = returns - old_values_body_part
-                        memory.add_calculated_values(agent_id, body_part, "advantages", advantages.detach())
-
-            # после того как все данные для обучения подготовлены, можно выполнить перемешивание данных
-
+                    body_part_values = torch.Tensor(memory.buffer[agent_id][body_part]["body_part_values"])[:buffer_size]
+                    body_part_values = body_part_values.unsqueeze(1)
+                    advantages = returns - body_part_values
+                    memory.add_advantages(agent_id, body_part, advantages)
 
             # обучение модели
             # инициализируем списки для промежуточного хранения значений функций потерь
@@ -294,65 +300,71 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
             value_losses = list()
             value_body_losses = list()
             entropies = list()
-            for agent_id in memory.agent_ids:
-                # получим батч с данными для текущего агента
-                batch = memory.sample(agent_id, device)
+            # обучение будем проводить iter_count итераций для накопленной выборки данных
+            for iter in range(iter_count):
+                # извлекаем данные из памяти, перемешивая их по траекториям всех агентов, но не по частям тела агента
+                buffer = memory.sample_buffer(shuffle=True)
+                for batch_step in range(0, buffer['size'], batch_size):
+                    # вырежем из буфера текущий батч
+                    batch = memory.sample_batch(buffer, batch_step, batch_size, device,
+                                                ['full_obs', 'obs', 'actions'])
 
-                # перемешаем список частей тела агента, чтобы данные для обучения перемешивались
-                body_part_names = list(walker_body.body.keys())
-                random.shuffle(body_part_names)
-                for body_part in body_part_names:
+                    # перемешаем список частей тела агента
+                    body_part_names = list(walker_body.body.keys())
+                    random.shuffle(body_part_names)
+                    for body_part in body_part_names:
+                        # вычислим логарифмы вероятностей действий и энтропию для каждой части тела агента
+                        # с помощью модели актора для соответствующей части тела
+                        full_obs = batch[body_part]["full_obs"]
+                        actions = batch[body_part]["actions"]
+                        log_probs, entropy = body_model[body_part].evaluate_actions(full_obs, actions)
 
-                    # вычислим логарифмы вероятностей действий и энтропию для каждой части тела агента
-                    # с помощью модели актора для соответствующей части тела
-                    full_obs = batch[body_part]["full_obs"]
-                    actions = batch[body_part]["actions"]
-                    log_probs, entropy = body_model[body_part].evaluate_actions(full_obs, actions)
+                        # вычислим значения текущей модели критика на основании наблюдений всех частей тела, без учета действий
+                        # в данном случае вычисляем эти значения для каждой части тела,
+                        # потому что модель меняется в результате обучения
+                        common_values = critic_model.critic_common(batch)
 
-                    # вычислим значения модели критика на основании наблюдений всех частей тела, без учета действий
-                    values_full = critic_model.critic_full(batch)
+                        # вычислим значения для текущей модели критика на основании наблюдений всех частей тела,
+                        # с учетом действий частей тела отличных от текущего
+                        body_part_values = critic_model.critic_body_part(batch, body_part)
 
-                    # вычислим значения модели критика на основании наблюдений всех частей тела,
-                    # с учетом действий частей тела отличных от текущего
-                    values_body_part = critic_model.critic_body_part(batch, body_part)
+                        # извлечем ранее рассчитанные значения
+                        old_common_values = batch[body_part]["common_values"]
+                        old_body_part_values = batch[body_part]["body_part_values"]
+                        returns = batch[body_part]["returns"]
+                        old_log_probs = batch[body_part]["log_probs"]
+                        advantages = batch[body_part]["advantages"]
 
-                    # извлечем ранее рассчитанные значения
-                    old_values_full = estimates[agent_id][body_part]["old_values_full"]
-                    old_values_body_part = estimates[agent_id][body_part]["old_values_body_part"]
-                    returns = estimates[agent_id][body_part]["returns"]
-                    old_log_probs = batch[body_part]["log_probs"]
-                    advantages = estimates[agent_id][body_part]["advantages"]
+                        # рассчитаем функции потерь для модели критика, используя значения,
+                        # полученные с помощью старой модели и с помощью текущей модели
+                        value_loss = calc_value_loss(common_values, old_common_values, returns, EPSILON)
+                        value_body_loss = calc_value_loss(body_part_values, old_body_part_values, returns, EPSILON)
 
-                    # рассчитаем функции потерь для модели критика, используя значения,
-                    # полученные с помощью старой модели и с помощью текущей модели
-                    value_loss = calc_value_loss(values_full, old_values_full, returns, EPSILON)
-                    value_body_loss = calc_value_loss(values_body_part, old_values_body_part, returns, EPSILON)
+                        # рассчитаем функцию потерь для актора текущей части тела на основании рассчитанных
+                        # с помощью старой модели значений переменных преимущества и логарифмов вероятностей действий,
+                        # и рассчитанных с помощью текущей модели значений логарифмов вероятностей действий
+                        policy_loss = calc_policy_loss(advantages, log_probs, old_log_probs, EPSILON)
 
-                    # рассчитаем функцию потерь для актора текущей части тела на основании рассчитанных
-                    # с помощью старой модели значений переменных преимущества и логарифмов вероятностей действий,
-                    # и рассчитанных с помощью текущей модели значений логарифмов вероятностей действий
-                    policy_loss = calc_policy_loss(advantages, log_probs, old_log_probs, EPSILON)
+                        # суммируем все функции потерь в одну
+                        loss = (
+                                policy_loss
+                                + 0.5 * (value_loss + 0.5 * value_body_loss)
+                                - BETA * torch.mean(entropy)
+                        )
 
-                    # суммируем все функции потерь в одну
-                    loss = (
-                            policy_loss
-                            + 0.5 * (value_loss + 0.5 * value_body_loss)
-                            - BETA * torch.mean(entropy)
-                    )
+                        # сохраняем значения функции потерь для статистики
+                        losses.append(loss.item())
+                        policy_losses.append(policy_loss.item())
+                        value_losses.append(value_loss.item())
+                        value_body_losses.append(value_body_loss.item())
+                        entropies.append(torch.mean(entropy).item())
 
-                    # сохраняем значения функции потерь для статистики
-                    losses.append(loss.item())
-                    policy_losses.append(policy_loss.item())
-                    value_losses.append(value_loss.item())
-                    value_body_losses.append(value_body_loss.item())
-                    entropies.append(torch.mean(entropy).item())
+                        # обнуляем и вычисляем градиенты
+                        optimizer.zero_grad()
+                        loss.backward()
 
-                    # обнуляем и вычисляем градиенты
-                    optimizer.zero_grad()
-                    loss.backward()
-
-                    # выполняем шаг обучения
-                    optimizer.step()
+                        # выполняем шаг обучения
+                        optimizer.step()
 
             # отправляем усредненные значения функций потерь в tensorboard
             summary_writer.add_scalar("loss", statistics.mean(losses), step)
@@ -371,7 +383,10 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
 
             # сбрасываем буфер траекторий, т.к. у нас on-policy алгоритм
             # и нам нужно накопить данные уже на основании только что обученной модели
-            memory.reset()
+            memory = None
+
+            # сбрасываем среду в начальное состояние
+            env.reset()
 
         # если достигли шага, на котором нужно сохранять модель, то сохраняем
         if save_freq is not None and save_path is not None:

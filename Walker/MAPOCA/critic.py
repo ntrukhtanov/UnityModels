@@ -31,7 +31,7 @@ class CriticModel(nn.Module):
         """
         return self.value_heads(encoding)
 
-    def critic_full(self, batch):
+    def critic_common(self, batch):
         """
         Функция прямого прохождения модели критика на основании наблюдений всех частей тела агента,
         без учета их действий.
