@@ -292,6 +292,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
                     body_part_values = torch.Tensor(memory.buffer[agent_id][body_part]["body_part_values"])[:buffer_size]
                     body_part_values = body_part_values.unsqueeze(1)
                     advantages = returns - body_part_values
+                    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-08)
                     memory.add_advantages(agent_id, body_part, advantages)
 
             # обучение модели
