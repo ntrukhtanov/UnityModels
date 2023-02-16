@@ -40,12 +40,13 @@ class ResidualSelfAttention(torch.nn.Module):
         :param inp: входные эмбединги
         :return: результат работы модели
         """
-        # выполним перестановку N и L, потому что параметр batch_first для nn.MultiheadAttention отсутствует
-        # в более ранних версиях torch, которую требует библиотека mlagents
-        inp = torch.permute(inp, (1, 0, 2))
 
         # выполним нормализацию эмбеддингов
         inp = self.embedding_norm(inp)
+
+        # выполним перестановку N и L, потому что параметр batch_first для nn.MultiheadAttention отсутствует
+        # в более ранних версиях torch, которую требует библиотека mlagents
+        inp = torch.permute(inp, (1, 0, 2))
 
         # вычислим значения эмбеддингов для параметров query, key, value
         query = self.fc_q(inp)
@@ -57,6 +58,7 @@ class ResidualSelfAttention(torch.nn.Module):
         # Residual
         # Складываем поэлементно результаты работы механизма внимания входные эмбеддинги и выполняем нормализацию
         output = self.fc_out(output) + inp
+        output = torch.permute(output, (1, 0, 2))
         output = self.residual_norm(output)
 
         # Average Pooling
@@ -66,6 +68,6 @@ class ResidualSelfAttention(torch.nn.Module):
         #output = numerator / denominator
 
         # т.к. пока масок нет просто усредняем
-        output = torch.mean(output, dim=0)
+        output = torch.mean(output, dim=1)
 
         return output
