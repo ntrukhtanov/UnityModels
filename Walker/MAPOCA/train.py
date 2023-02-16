@@ -388,6 +388,11 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
             # и нам нужно накопить данные уже на основании только что обученной модели
             memory = None
 
+            # сбрасываем буферы для промежуточного хранения информации о статистике агентов
+            agents_statistic = dict()
+            agents_total_rewards = list()
+            agents_lifetimes = list()
+
             # сбрасываем среду в начальное состояние
             env.reset()
 
