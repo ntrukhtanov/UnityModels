@@ -2,7 +2,7 @@ import random
 
 import torch
 
-
+# TODO: прокомментировать
 class ExperienceBuffer:
     def __init__(self, walker_body, agent_ids, buffer_size):
         self.walker_body = walker_body

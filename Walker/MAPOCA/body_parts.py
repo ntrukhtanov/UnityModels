@@ -1,4 +1,4 @@
-
+# TODO: прокомментировать
 class BodyPartProperties:
     def __init__(self, hidden_dim, output_dim, obs_space_idxs, action_space_idxs):
         self.input_dim = len(obs_space_idxs)
