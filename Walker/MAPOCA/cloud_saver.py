@@ -23,8 +23,7 @@ class CloudSaver:
             for filename in item[2]:
                 local_filename = os.path.join(tensorboard_dir, filename)
                 ya_filename = os.path.join(ya_tensorboard_dir, filename)
-                if not self.ya_disk.exists(ya_filename):
-                    self.ya_disk.upload(local_filename, ya_filename, overwrite=False)
+                self.ya_disk.upload(local_filename, ya_filename, overwrite=True)
 
             break
 
