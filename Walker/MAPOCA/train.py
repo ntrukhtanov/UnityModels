@@ -413,7 +413,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
                 if cloud_saver is not None:
                     summary_writer.flush()
                     try:
-                        cloud_saver.save(step=step, checkpoint_file_name=save_file_name, tensorboard_dir=summary_dir)
+                        cloud_saver.save(checkpoint_file_name=save_file_name, tensorboard_dir=summary_dir)
                     except Exception as ex:
                         print(f"Ошибка копирования состояния в облако")
                         for arg in ex.args:

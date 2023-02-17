@@ -10,7 +10,7 @@ class CloudSaver:
         self.ya_disk = yadisk.YaDisk(token=ya_token)
         assert self.ya_disk.exists(self.ya_path), f"Папка с именем {self.ya_path} отсутствует в облаке"
 
-    def save(self, step, checkpoint_file_name, tensorboard_dir):
+    def save(self, checkpoint_file_name, tensorboard_dir):
         ya_checkpoint_file_name = os.path.join(self.ya_path, os.path.basename(checkpoint_file_name))
         self.ya_disk.upload(checkpoint_file_name, ya_checkpoint_file_name)
 
