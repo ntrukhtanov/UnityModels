@@ -35,7 +35,7 @@ BETA = 0.01
 
 
 def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, iter_count,
-          save_path=None, save_freq=None, restore_path=None, cloud_path=None):
+          save_path=None, save_freq=None, restore_path=None, cloud_path=None, env_worker_id=None):
     """
     Функция обучения модели.
     :param walker_env_path: Путь к сборке среды Walker
@@ -117,7 +117,9 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
         step = checkpoint['step'] + 1
 
     # инициализируем среду Walker без графического представления для скорости
-    env = UnityEnvironment(walker_env_path, worker_id=1, no_graphics=True)
+    if env_worker_id is None:
+        env_worker_id = 1
+    env = UnityEnvironment(walker_env_path, worker_id=env_worker_id, no_graphics=True)
 
     # сбрасываем среду в начальное состояние
     env.reset()
@@ -413,6 +415,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
                 summary_writer.flush()
 
                 if cloud_saver is not None:
+                    summary_writer.close()
                     try:
                         cloud_saver.save(checkpoint_file_name=save_file_name, tensorboard_dir=summary_dir)
                     except Exception as ex:
