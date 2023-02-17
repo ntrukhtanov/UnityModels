@@ -1,6 +1,13 @@
-# TODO: прокомментировать
 class BodyPartProperties:
     def __init__(self, hidden_dim, output_dim, obs_space_idxs, action_space_idxs):
+        """
+        Свойства модели части тела агента Walker
+        :param hidden_dim: размер скрытого полносвязного слоя модели актора
+        :param output_dim: количество выходов модели актора
+        (количество действий, по которым данной части тела нужно принять решение)
+        :param obs_space_idxs: индексы пространства наблюдений для данной части тела агента
+        :param action_space_idxs: индексы пространства действий для данной части клиента
+        """
         self.input_dim = len(obs_space_idxs)
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
@@ -9,16 +16,28 @@ class BodyPartProperties:
 
 
 class WalkerBody:
+    """
+    Класс свойств агента Walker.
+    Представляет собой результат декомпозиции пространства наблюдений и пространства действий агента.
+    """
     def __init__(self):
         self.body = dict()
 
+        # полные размеры пространств наблюдений и действий
         self.obs_size = 243
         self.actions_size = 39
 
         range_list = list(range(self.obs_size))
-        # общая часть + hips + handL + handR
+
+        # Индексы общей части для всех частей тела.
+        # Первые 18 индексов несут информацию о позиции, скорости и направлении движения агента,
+        # а так же о позиции целеуказателя, в сторону которого должен двигаться агент.
+        # Дополнительно индексы пространства наблюдений для трех частей тела агента,
+        # которые не требуют действий (hips, handL, handR). Эту информацию тоже предоставим в качестве
+        # наблюдений для каждой части тела.
         self.common_obs_space_idxs = range_list[:18] + range_list[18:28] + range_list[193:203] + range_list[233:243]
 
+        # далее все части тела агента, для которых требуются действия
         self.body['head'] = BodyPartProperties(hidden_dim=32,
                                                output_dim=3,
                                                obs_space_idxs=self.common_obs_space_idxs + range_list[58:73],
