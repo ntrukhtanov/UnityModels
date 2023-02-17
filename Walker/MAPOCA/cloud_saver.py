@@ -23,7 +23,14 @@ class CloudSaver:
             for filename in item[2]:
                 local_filename = os.path.join(tensorboard_dir, filename)
                 ya_filename = os.path.join(ya_tensorboard_dir, filename)
-                self.ya_disk.upload(local_filename, ya_filename, overwrite=True)
+                if self.ya_disk.exists(ya_filename):
+                    meta = self.ya_disk.get_meta(ya_filename)
+                    size = meta['size']
+                    stat = os.stat(local_filename)
+                    if size != stat.st_size:
+                        self.ya_disk.upload(local_filename, ya_filename, overwrite=True)
+                else:
+                    self.ya_disk.upload(local_filename, ya_filename, overwrite=True)
 
             break
 
