@@ -1,4 +1,3 @@
-# TODO: прокомментировать
 class BodyPartProperties:
     def __init__(self, hidden_dim, output_dim, obs_space_idxs, action_space_idxs):
         """
@@ -18,8 +17,8 @@ class BodyPartProperties:
 
 class WalkerBody:
     """
-    Вспомогательный класс со свойствами агента Walker.
-    Данный класс представляет собой результат декомпозиции пространтсва наблюдений и пространтсва действий агента.
+    Класс свойств агента Walker.
+    Представляет собой результат декомпозиции пространства наблюдений и пространства действий агента.
     """
     def __init__(self):
         self.body = dict()
