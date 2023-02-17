@@ -5,7 +5,7 @@ from linear_encoder import LinearEncoder
 from entity_embedding import EntityEmbedding
 from attention import ResidualSelfAttention
 
-EMBEDDING_SIZE = 64
+EMBEDDING_SIZE = 128
 
 
 class MultiAgentNetworkBody(nn.Module):
@@ -39,7 +39,7 @@ class MultiAgentNetworkBody(nn.Module):
         self.self_attn = ResidualSelfAttention(EMBEDDING_SIZE)
 
         # инициализируем модель из полносвязных слоев, которая будет являться выходом данной модели
-        self.linear_encoder = LinearEncoder(EMBEDDING_SIZE, 1, hidden_size)
+        self.linear_encoder = LinearEncoder(EMBEDDING_SIZE, 2, hidden_size)
 
     def forward(self, batch, body_part):
         """
