@@ -48,6 +48,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
     :param save_freq: Частота сохранения модели (каждые save_freq шагов)
     :param restore_path: Путь к файлу модели для восстановления
     :param cloud_path: Путь в облачном хранилище для копирования модели
+    :param env_worker_id: id пространства unity Walker
     :return:
     """
     assert walker_env_path is not None, f"Не указан обязательный параметр walker_env_path"
