@@ -35,7 +35,8 @@ BETA = 0.01
 
 
 def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, iter_count,
-          save_path=None, save_freq=None, restore_path=None, cloud_path=None, env_worker_id=None):
+          save_path=None, save_freq=None, restore_path=None, cloud_path=None, env_worker_id=None,
+          cloud_restore_path=None):
     """
     Функция обучения модели.
     :param walker_env_path: Путь к сборке среды Walker
@@ -48,6 +49,8 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
     :param save_freq: Частота сохранения модели (каждые save_freq шагов)
     :param restore_path: Путь к файлу модели для восстановления
     :param cloud_path: Путь в облачном хранилище для копирования модели
+    :param env_worker_id: id пространства unity Walker
+    :param cloud_restore_path: Путь в облачном хранилище для загрузки модели
     :return:
     """
     assert walker_env_path is not None, f"Не указан обязательный параметр walker_env_path"
@@ -104,7 +107,10 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
     step = 0
 
     # если указан путь к файлу восстановления параметров модели, то обновляем параметры
-    if restore_path is not None:
+    if restore_path is not None or cloud_restore_path is not None:
+        if cloud_restore_path is not None:
+            restore_path = os.path.join(save_path, os.path.basename(cloud_restore_path))
+            cloud_saver.download_model(cloud_restore_path, restore_path)
         checkpoint = torch.load(restore_path, map_location=device)
 
         for body_part, body_part_model in body_model.items():
@@ -501,6 +507,18 @@ def run():
     else:
         cloud_path = None
 
+    if '-env_worker_id' in args:
+        idx = args.index('-env_worker_id')
+        env_worker_id = int(args[idx + 1])
+    else:
+        env_worker_id = None
+
+    if '-cloud_restore_path' in args:
+        idx = args.index('-cloud_restore_path')
+        cloud_restore_path = args[idx + 1]
+    else:
+        cloud_restore_path = None
+
     train(walker_env_path=walker_env_path,
           summary_dir=summary_dir,
           total_steps=total_steps,
@@ -510,7 +528,9 @@ def run():
           save_path=save_path,
           save_freq=save_freq,
           restore_path=restore_path,
-          cloud_path=cloud_path)
+          cloud_path=cloud_path,
+          env_worker_id=env_worker_id,
+          cloud_restore_path=cloud_restore_path)
 
 
 if __name__ == '__main__':
