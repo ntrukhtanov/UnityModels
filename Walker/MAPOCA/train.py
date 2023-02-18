@@ -436,6 +436,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
 
 
 def run():
+    # TODO: прокомментировать и переписать красиво
     # -buffer_size 32
     # -total_steps 30000000
     # -walker_env_path ./Unity/Walker
