@@ -34,3 +34,5 @@ class CloudSaver:
 
             break
 
+    def download_model(self, cloud_path, local_path):
+        self.ya_disk.download(cloud_path, local_path)
