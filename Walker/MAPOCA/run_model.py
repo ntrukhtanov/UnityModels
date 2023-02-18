@@ -1,4 +1,5 @@
 from mlagents_envs.environment import UnityEnvironment
+from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 from mlagents_envs.base_env import ActionTuple
 import numpy as np
 import torch
@@ -7,6 +8,7 @@ from body_parts import WalkerBody
 from actor import ActorModel
 
 import sys
+import time
 
 
 # TODO: прокомментировать
@@ -25,7 +27,11 @@ def run_model(walker_env_path, restore_path, env_worker_id):
     for body_part, body_part_model in body_model.items():
         body_part_model.load_state_dict(checkpoint[body_part])
 
-    env = UnityEnvironment(walker_env_path, worker_id=env_worker_id, no_graphics=False)
+    channel = EngineConfigurationChannel()
+    env = UnityEnvironment(walker_env_path, side_channels=[channel], worker_id=env_worker_id, no_graphics=False)
+    #channel.set_configuration_parameters(time_scale=1.0)
+    #channel.set_configuration_parameters(target_frame_rate=24)
+    #channel.set_configuration_parameters(capture_frame_rate=True)
     env.reset()
     behavior_name = None
     for behavior_name in env.behavior_specs:
@@ -36,7 +42,9 @@ def run_model(walker_env_path, restore_path, env_worker_id):
     agents_statistic = dict()
 
     step = 0
+    time_4_step = 0.2
     while True:
+        start_time = time.time()
         ds, ts = env.get_steps(behavior_name)
         if ds.agent_id.shape[0] > 0:
             n_agents = ds.agent_id.shape[0]
@@ -78,6 +86,10 @@ def run_model(walker_env_path, restore_path, env_worker_id):
 
         step += 1
         env.step()
+        sleep_time = time_4_step - (time.time() - start_time)
+        if sleep_time > 0:
+            time.sleep(sleep_time)
+
 
 
 def run():
