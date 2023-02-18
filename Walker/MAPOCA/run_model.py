@@ -10,7 +10,6 @@ import sys
 
 
 # TODO: прокомментировать
-#/home/tnv/tempExperiments/model_350000.pt
 def run_model(walker_env_path, restore_path, env_worker_id):
     walker_body = WalkerBody()
     body_model = dict()
