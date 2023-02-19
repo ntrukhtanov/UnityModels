@@ -156,6 +156,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
     # в случае восстановления модели из бэкапа
     pbar = tqdm(range(total_steps))
     pbar.update(n=step)
+    actor_start_time = time.time()
     while step < total_steps:
         # получаем данные из среды Walker:
         # ds - содержит данные об агентах, которые требуют указания действий для следующего шага
@@ -275,7 +276,8 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
 
         # если буфер траекторий агентов наполнился, то начинаем обучать модель
         if memory.buffer_is_full():
-            start_time = time.time()
+            print(f"Actor run time,s: {(time.time() - actor_start_time):.1f}")
+            train_start_time = time.time()
             # сначала вычислим необходимые переменные на текущей модели и добавим их в память
             # эти значения потребуются для вычисления функций потерь во время обучения
             for agent_id in memory.agent_ids:
@@ -404,7 +406,8 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
             # сбрасываем среду в начальное состояние
             env.reset()
 
-            print(f"Train time,s: {(time.time() - start_time):.1f}")
+            print(f"Train time,s: {(time.time() - train_start_time):.1f}")
+            actor_start_time = time.time()
 
         # если достигли шага, на котором нужно сохранять модель, то сохраняем
         if save_freq is not None and save_path is not None:
