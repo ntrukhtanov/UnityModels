@@ -25,6 +25,8 @@ class ActorModel(nn.Module):
         self.actor_body = nn.Sequential(
             nn.Linear(input_dim, body_part_properties.hidden_dim),
             nn.ReLU(),
+            nn.Linear(body_part_properties.hidden_dim, body_part_properties.hidden_dim),
+            nn.ReLU(),
             nn.Linear(body_part_properties.hidden_dim, body_part_properties.output_dim)
         )
 
