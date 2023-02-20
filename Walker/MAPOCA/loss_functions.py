@@ -1,7 +1,7 @@
 import torch
 
 
-def calc_policy_loss(advantages, log_probs, old_log_probs, epsilon):
+def calc_policy_loss(advantages, log_probs, old_log_probs, mask, epsilon):
     """
     Функция расчета значения функции потерь для актора.
     :param advantages: Значения функции преимущества.
@@ -17,11 +17,12 @@ def calc_policy_loss(advantages, log_probs, old_log_probs, epsilon):
 
     # берем со знаком минус, т.к. у используем алгоритм градиента стратегии и нам нужен градиентный подъем,
     # а оптимизатор выполняет градиентный спуск
-    policy_loss = -1 * torch.mean(torch.min(p_opt_a, p_opt_b))
+    policy_loss = torch.sum(torch.min(p_opt_a, p_opt_b), dim=1, keepdim=True)
+    policy_loss = -1 * torch.sum(mask * policy_loss) / mask.sum()
     return policy_loss
 
 
-def calc_value_loss(values, old_values, returns, epsilon):
+def calc_value_loss(values, old_values, returns, mask, epsilon):
     """
     Функция расчета значения функции потерь для критика
     :param values: Значения полученные на выходе модели критика, рассчитанные на основе текущей модели
@@ -36,7 +37,8 @@ def calc_value_loss(values, old_values, returns, epsilon):
     )
     v_opt_a = (returns - values) ** 2
     v_opt_b = (returns - clipped_value_estimate) ** 2
-    loss = torch.mean(torch.max(v_opt_a, v_opt_b))
+    loss = torch.max(v_opt_a, v_opt_b)
+    loss = torch.sum(mask * loss) / mask.sum()
     return loss
 
 

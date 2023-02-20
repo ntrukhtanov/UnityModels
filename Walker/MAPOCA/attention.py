@@ -34,7 +34,7 @@ class ResidualSelfAttention(torch.nn.Module):
         # слой для нормализции результатов сложения выхода механизма внимания и входных эмбедингов
         self.residual_norm = nn.LayerNorm(normalized_shape=embedding_size, elementwise_affine=False)
 
-    def forward(self, inp):
+    def forward(self, inp, mask):
         """
         Функция прямого прохождения модели внимания
         :param inp: входные эмбединги
@@ -53,7 +53,7 @@ class ResidualSelfAttention(torch.nn.Module):
         key = self.fc_k(inp)
         value = self.fc_v(inp)
 
-        output, _ = self.attention(query=query, key=key, value=value)
+        output, _ = self.attention(query=query, key=key, value=value, key_padding_mask=mask)
 
         # Residual
         # Складываем поэлементно результаты работы механизма внимания входные эмбеддинги и выполняем нормализацию
@@ -62,12 +62,10 @@ class ResidualSelfAttention(torch.nn.Module):
         output = self.residual_norm(output)
 
         # Average Pooling
-        #num_ent = inp.shape[1]
-        #numerator = torch.sum(output * (1 - mask).reshape(-1, num_ent, 1), dim=1)
-        #denominator = torch.sum(1 - mask, dim=1, keepdim=True) + self.EPSILON
-        #output = numerator / denominator
-
-        # т.к. пока масок нет просто усредняем
-        output = torch.mean(output, dim=1)
+        numerator_mask = (~mask).unsqueeze(2)
+        numerator = output * numerator_mask
+        numerator = torch.sum(numerator, dim=1)
+        denominator = torch.sum(~mask, dim=1, keepdim=True)
+        output = numerator / denominator
 
         return output

@@ -53,47 +53,113 @@ class MultiAgentNetworkBody(nn.Module):
         # список, в котором собираем результаты работы энкодеров, для дальнейшей обработки с помощью механизма внимания
         self_attn_inputs = list()
 
+        # список, в котором собираем маски для механизма внимания, чтобы исключить сломанные части тела агента
+        self_attn_masks = list()
+
         if body_part is None:
             # вычисляем результаты работы энкодеров на основании наблюдений всех частей тела, без учета действий
             all_encoded_obs = list()
+            masks = list()
             for body_part in self.walker_body.body.keys():
+                obs = batch[body_part]["obs"]
+                # если наблюдение для текущей части тела содержит хотя бы одно значение nan,
+                # заполняем для него маску значением True
+                mask = torch.isnan(obs)
+                mask = mask.sum(dim=1)
+                mask = mask > 0
+                masks.append(mask)
+
+                # обнулим значения nan для отправки в энкодер
+                obs = torch.nan_to_num(obs)
+
                 # Для каждой части тела свой энкодер наблюдений, т.к. наблюдения имеют разную размерность
                 # и части тела выполняют разные функции.
-                all_encoded_obs.append(self.obs_encoders[body_part](batch[body_part]["obs"]))
+                all_encoded_obs.append(self.obs_encoders[body_part](obs))
 
-            # собираем все в один тензор и добавляем в список для механизма внимания
+            # собираем все эмбединги в один тензор и добавляем в список для механизма внимания
             all_encoded_obs = torch.stack(all_encoded_obs, dim=1)
             self_attn_inputs.append(all_encoded_obs)
+
+            # собираем все маски в один тензор и добавляем в список для механизма внимания
+            masks = torch.stack(masks, dim=1)
+            self_attn_masks.append(masks)
         else:
             # Вычислим результаты работы энкодеров на основании наблюдения текущей части тела (параметр body_part)
             # без учета его действий,
             # и на основании наблюдений всех остальных частей тела, с учетом их действий
 
+            obs = batch[body_part]["obs"]
+
+            # если наблюдение для текущей части тела содержит хотя бы одно значение nan,
+            # заполняем для него маску значением True
+            mask = torch.isnan(obs)
+            mask = mask.sum(dim=1)
+            mask = mask > 0
+
+            # обнулим значения nan для отправки в энкодер
+            obs = torch.nan_to_num(obs)
+
             # вычисляем энкодер для текущй части тела и добавляем в список на вход механизма внимания
-            encoded_obs = self.obs_encoders[body_part](batch[body_part]["obs"])
+            encoded_obs = self.obs_encoders[body_part](obs)
             encoded_obs = torch.stack([encoded_obs], dim=1)
             self_attn_inputs.append(encoded_obs)
 
+            # добавляем в список маску для текущей части тела
+            masks = torch.stack([mask], dim=1)
+            self_attn_masks.append(masks)
+
             # проходим по всем частям тела кроме текущей и вычисляем энкодеры с учетом их действий
             encoded_obs_with_actions = list()
+            masks = list()
             for other_body_part in self.walker_body.body.keys():
                 if other_body_part != body_part:
                     obs = batch[other_body_part]["obs"]
                     actions = batch[other_body_part]["actions"]
+
+                    # если наблюдение для текущей части тела содержит хотя бы одно значение nan,
+                    # заполняем для него маску значением True
+                    obs_mask = torch.isnan(obs)
+                    obs_mask = obs_mask.sum(dim=1)
+                    obs_mask = obs_mask > 0
+
+                    # обнулим значения nan для отправки в энкодер
+                    obs = torch.nan_to_num(obs)
+
+                    # если действия для текущей части тела содержат хотя бы одно значение nan,
+                    # заполняем для него маску значением True
+                    actions_mask = torch.isnan(actions)
+                    actions_mask = actions_mask.sum(dim=1)
+                    actions_mask = actions_mask > 0
+
+                    # обнулим значения nan для отправки в энкодер
+                    actions = torch.nan_to_num(actions)
+
+                    # объединяем маски логическим или
+                    mask = obs_mask | actions_mask
+
+                    # и добавляем в список
+                    masks.append(mask)
+
                     # объединяем наблюдения и действия в один тензор
                     obs_with_actions = torch.cat([obs, actions], dim=1)
 
                     # для каждой части тела свой отдельный энкодер,
                     # т.к. пространства наблюдений и действий разнородны и функции частей тела различны
                     encoded_obs_with_actions.append(self.obs_action_encoders[other_body_part](obs_with_actions))
+
+            # собираем все эмбединги в один тензор и добавляем в список для механизма внимания
             encoded_obs_with_actions = torch.stack(encoded_obs_with_actions, dim=1)
             self_attn_inputs.append(encoded_obs_with_actions)
 
+            # собираем все маски в один тензор и добавляем в список для механизма внимания
+            masks = torch.stack(masks, dim=1)
+            self_attn_masks.append(masks)
+
         # собираем все результаты работы энкодеров в один тензор и отправляем на вход механизма внимания
         encoded_entity = torch.cat(self_attn_inputs, dim=1)
-        encoded_state = self.self_attn(encoded_entity)
+        mask = torch.cat(self_attn_masks, dim=1)
+        encoded_state = self.self_attn(encoded_entity, mask)
 
-        # TODO: здесь нужно добавить количество агентов, на первом этапе не делаем
         # результаты работы механизма внимания прогоняем через полносвязную сеть
         # для выичсления результатов работы модели критика для нескольких агентов
         encoding = self.linear_encoder(encoded_state)

@@ -36,7 +36,7 @@ BETA = 0.01
 
 def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, iter_count,
           save_path=None, save_freq=None, restore_path=None, cloud_path=None, env_worker_id=None,
-          cloud_restore_path=None, eval_freq=None):
+          cloud_restore_path=None, eval_freq=None, break_body_parts=None):
     """
     Функция обучения модели.
     :param walker_env_path: Путь к сборке среды Walker
@@ -52,6 +52,8 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
     :param env_worker_id: id пространства unity Walker
     :param cloud_restore_path: Путь в облачном хранилище для загрузки модели
     :param eval_freq: Частота тестового прогона модели (каждые eval_freq шагов)
+    :param break_body_parts: Сломанные части тела в формате класса WalkerBody через запятую без пробелов
+                             (Например: head,spine)
     :return:
     """
     assert walker_env_path is not None, f"Не указан обязательный параметр walker_env_path"
@@ -85,6 +87,20 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
     # класс хранит в себе данные о декомпоизии агента на условную команду,
     # состоящую и частей тела агента
     walker_body = WalkerBody()
+
+    # если нужно научиться ходить со сломанными частями тела, то соберем соответствующие индексы
+    # в пространствах наблюдений и действий
+    broken_body_parts = list()
+    obs_brake_idxs = list()
+    actions_breake_idxs = list()
+    if break_body_parts is not None:
+        broken_body_parts = break_body_parts.split(",")
+        for body_part in broken_body_parts:
+            body_part_prop = walker_body.body[body_part]
+            obs_brake_idxs.extend(
+                [idx for idx in body_part_prop.obs_space_idxs if idx not in walker_body.common_obs_space_idxs])
+            actions_breake_idxs.extend(body_part_prop.action_space_idxs)
+
 
     # инициализация моделей актора и критика
     # в зависимости от значения параметра restore_path модель восстанавивается из файла или только инициализируется
@@ -185,17 +201,33 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
             # среда обрабатывает сразу 10 агентов, но часть из них может завершить эпизод
             n_agents = ds.agent_id.shape[0]
 
-            # создаем тензор для непрерывных действий, заполненный нулями
-            continious_actions = torch.zeros(n_agents, action_spec.continuous_size)
-
             # преобразуем матрицу наблюдений в тензор
             input_data = torch.from_numpy(ds.obs[0])
 
+            # создаем тензор для непрерывных действий, заполненный значениями nan
+            continious_actions = torch.full((n_agents, action_spec.continuous_size), float('nan'))
+
             # инициализируем тензор для сохранения логарифмов вероятностей действий
             # эти данные потребуются для вычисления функции потерь для моделей актора
-            log_probs = torch.zeros(n_agents, action_spec.continuous_size)
+            log_probs = torch.full((n_agents, action_spec.continuous_size), float('nan'))
 
-            # проходим по каждой части тела и вычисляем для них действия
+            # для сломанных частей тела
+            # для агентов с нечетными id будем заменять наблюдения и действия на nan
+            # для агентов с четными id оставим все как есть
+            # создадим соответствующие маски для наблюдений и для действий
+            obs_mask = torch.zeros_like(input_data).to(torch.bool)
+            actions_mask = torch.zeros_like(continious_actions).to(torch.bool)
+            if len(obs_brake_idxs) > 0:
+                for agent_id in ds.agent_id:
+                    if agent_id % 2 != 0:
+                        idx = ds.agent_id_to_index[agent_id]
+                        obs_mask[idx, obs_brake_idxs] = True
+                        actions_mask[idx, actions_breake_idxs] = True
+
+            # обнулим данные о наблюдениях согласно маске
+            input_data[obs_mask] = 0.0
+
+            # проходим по каждой части тела, и вычисляем для них действия
             # для вычислений используем текущие модели акторов
             for body_part, body_part_model in body_model.items():
                 # градиенты вычислять не нужно, будем их вычислять в момент обучения
@@ -216,9 +248,16 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
                 # аналогично сохраняем логарифмы вероятностей действий
                 log_probs[:, idxs] = log_prob.cpu().detach()
 
+            # заменяем все наблюдения, действия и их вероятности, для сломанных частей тела на nan
+            input_data[obs_mask] = float('nan')
+            continious_actions[actions_mask] = float('nan')
+            log_probs[actions_mask] = float('nan')
+
             # формируем объект ActionTuple, который требуется среде Walker для обработки действий
+            # среда Walker не сможет обработать значения nan для сломанных частей тела, поэтому заменим nan на 0.0
+            continious_actions_4_env = torch.nan_to_num(continious_actions.detach().cpu()).numpy()
             action_tuple = ActionTuple()
-            action_tuple.add_continuous(continious_actions.detach().cpu().numpy())
+            action_tuple.add_continuous(continious_actions_4_env)
 
             # отправляем действия в среду Walker
             env.set_actions(behavior_name, action_tuple)
@@ -233,7 +272,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
                 # reward: вознаграждение агента
                 # done: признак завершения эпизода для агента
                 # log_probs: логарифмы вероятностей действий агента
-                memory.add_experience(agent_id=agent_id, obs=torch.from_numpy(ds.obs[0][idx]),
+                memory.add_experience(agent_id=agent_id, obs=input_data[idx],
                                       actions=continious_actions[idx],
                                       reward=ds.reward[idx], log_probs=log_probs[idx])
 
@@ -338,10 +377,21 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
                     body_part_names = list(walker_body.body.keys())
                     random.shuffle(body_part_names)
                     for body_part in body_part_names:
-                        # вычислим логарифмы вероятностей действий и энтропию для каждой части тела агента
-                        # с помощью модели актора для соответствующей части тела
                         full_obs = batch[body_part]["full_obs"]
                         actions = batch[body_part]["actions"]
+
+                        # определим маску со значениями, которые относятся к сломанной части тела,
+                        # чтобы исключить их из рассчета функции потерь
+                        mask = torch.isnan(actions)
+                        mask = mask.sum(dim=1, keepdim=True)
+                        mask = (mask == 0)
+
+                        # заменив в тензорах наблюдений и действий nan на 0.0
+                        full_obs = torch.nan_to_num(full_obs)
+                        actions = torch.nan_to_num(actions)
+
+                        # вычислим логарифмы вероятностей действий и энтропию для каждой части тела агента
+                        # с помощью модели актора для соответствующей части тела
                         log_probs, entropy = body_model[body_part].evaluate_actions(full_obs, actions)
 
                         # вычислим значения текущей модели критика на основании наблюдений всех частей тела, без учета действий
@@ -362,19 +412,25 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
 
                         # рассчитаем функции потерь для модели критика, используя значения,
                         # полученные с помощью старой модели и с помощью текущей модели
-                        value_loss = calc_value_loss(common_values.cpu(), old_common_values, returns, EPSILON)
-                        value_body_loss = calc_value_loss(body_part_values.cpu(), old_body_part_values, returns, EPSILON)
+                        value_loss = calc_value_loss(common_values.cpu(), old_common_values, returns, mask, EPSILON)
+                        value_body_loss = calc_value_loss(body_part_values.cpu(), old_body_part_values, returns, mask, EPSILON)
 
                         # рассчитаем функцию потерь для актора текущей части тела на основании рассчитанных
                         # с помощью старой модели значений переменных преимущества и логарифмов вероятностей действий,
                         # и рассчитанных с помощью текущей модели значений логарифмов вероятностей действий
-                        policy_loss = calc_policy_loss(advantages, log_probs.cpu(), old_log_probs, EPSILON)
+                        # предварительно заменим nan на 0.0, затем исключим эти значения при расчете функции потерь
+                        old_log_probs = torch.nan_to_num(old_log_probs)
+                        policy_loss = calc_policy_loss(advantages, log_probs.cpu(), old_log_probs, mask, EPSILON)
+
+                        # посчитаем среднюю энтропию с учетом маски
+                        entropy = torch.sum(entropy.cpu(), dim=1, keepdim=True)
+                        entropy = torch.sum(mask * entropy) / mask.sum()
 
                         # суммируем все функции потерь в одну
                         loss = (
                                 policy_loss
                                 + 0.5 * (value_loss + 0.5 * value_body_loss)
-                                - BETA * torch.mean(entropy.cpu())
+                                - BETA * entropy
                         )
 
                         # сохраняем значения функции потерь для статистики
@@ -555,6 +611,12 @@ def run():
     else:
         eval_freq = None
 
+    if '-break_body_parts' in args:
+        idx = args.index('-break_body_parts')
+        break_body_parts = args[idx + 1]
+    else:
+        break_body_parts = None
+
     train(walker_env_path=walker_env_path,
           summary_dir=summary_dir,
           total_steps=total_steps,
@@ -567,7 +629,8 @@ def run():
           cloud_path=cloud_path,
           env_worker_id=env_worker_id,
           cloud_restore_path=cloud_restore_path,
-          eval_freq=eval_freq)
+          eval_freq=eval_freq,
+          break_body_parts=break_body_parts)
 
 
 if __name__ == '__main__':
