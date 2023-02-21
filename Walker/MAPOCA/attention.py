@@ -38,6 +38,7 @@ class ResidualSelfAttention(torch.nn.Module):
         """
         Функция прямого прохождения модели внимания
         :param inp: входные эмбединги
+        :param mask: маска для исключения сломанных частей тела в механизме внимания
         :return: результат работы модели
         """
 
@@ -53,6 +54,7 @@ class ResidualSelfAttention(torch.nn.Module):
         key = self.fc_k(inp)
         value = self.fc_v(inp)
 
+        # вычислим MultiheadAttention с учетом маски
         output, _ = self.attention(query=query, key=key, value=value, key_padding_mask=mask)
 
         # Residual
@@ -61,7 +63,7 @@ class ResidualSelfAttention(torch.nn.Module):
         output = output.permute((1, 0, 2))
         output = self.residual_norm(output)
 
-        # Average Pooling
+        # Average Pooling с учетом маски
         numerator_mask = (~mask).unsqueeze(2)
         numerator = output * numerator_mask
         numerator = torch.sum(numerator, dim=1)
