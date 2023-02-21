@@ -3,18 +3,28 @@ import torch
 from statistics import mean
 
 
-def evaluate(walker_body, env, model, episodes, device):
+def evaluate(walker_body, env, model, episodes, device, broken_body_parts):
     # инициализируем среду Walker
     env.reset()
+
+    # если нужно протестировать агентов со сломанными частями тела, то соберем соответствующие индексы
+    # в пространствах наблюдений и действий для последующего использования
+    obs_brake_idxs = list()
+    actions_breake_idxs = list()
+    if broken_body_parts is not None:
+        for body_part in broken_body_parts:
+            body_part_prop = walker_body.body[body_part]
+            obs_brake_idxs.extend(
+                [idx for idx in body_part_prop.obs_space_idxs if idx not in walker_body.common_obs_space_idxs])
+            actions_breake_idxs.extend(body_part_prop.action_space_idxs)
 
     # переводим модель в состояение тестирования
     for body_part_model in model.values():
         body_part_model.eval()
 
     # определяем значение ключа behavior_name, по нему будем получать данные о среде
-    behavior_name = None
     for behavior_name in env.behavior_specs:
-        print(behavior_name)
+        break
 
     # получим описание пространства действий агента
     # в среде Walker мы имеем 39 непрерывных действий и 0 дискретных действий
@@ -38,11 +48,15 @@ def evaluate(walker_body, env, model, episodes, device):
             # среда обрабатывает сразу 10 агентов, но часть из них может завершить эпизод
             n_agents = ds.agent_id.shape[0]
 
+            # преобразуем матрицу наблюдений в тензор
+            input_data = torch.from_numpy(ds.obs[0])
+
             # создаем тензор для непрерывных действий, заполненный нулями
             continious_actions = torch.zeros(n_agents, action_spec.continuous_size)
 
-            # преобразуем матрицу наблюдений в тензор
-            input_data = torch.from_numpy(ds.obs[0])
+            # если есть сломанные части тела, то обнулим информацию о наблюдениях для этих частей тела
+            if len(obs_brake_idxs) > 0:
+                input_data[:, obs_brake_idxs] = 0.0
 
             # проходим по каждой части тела и вычисляем для них действия
             # для вычислений используем текущие модели акторов
@@ -59,6 +73,10 @@ def evaluate(walker_body, env, model, episodes, device):
                 # которые соответствуют данной части тела
                 idxs = walker_body.body[body_part].action_space_idxs
                 continious_actions[:, idxs] = actions.cpu()
+
+            # если есть сломанные части тела, то обнулим информацию о действиях для этих частей тела
+            if len(actions_breake_idxs) > 0:
+                continious_actions[:, actions_breake_idxs] = 0.0
 
             # формируем объект ActionTuple, который требуется среде Walker для обработки действий
             action_tuple = ActionTuple()

@@ -90,6 +90,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
 
     # если нужно научиться ходить со сломанными частями тела, то соберем соответствующие индексы
     # в пространствах наблюдений и действий для последующего использования
+    broken_body_parts = list()
     obs_brake_idxs = list()
     actions_breake_idxs = list()
     if break_body_parts is not None:
@@ -482,11 +483,18 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
         if eval_freq is not None and step > 0 and step % eval_freq == 0:
             eval_start_time = time.time()
 
-            eval_total_reward, eval_agents_lifetime = evaluate(walker_body, eval_env, body_model, 25, device)
+            eval_total_reward, eval_agents_lifetime = evaluate(walker_body, eval_env, body_model, 25, device, None)
             summary_writer.add_scalar("Eval total reward", eval_total_reward, step)
             summary_writer.add_scalar("Eval agents lifetimes", eval_agents_lifetime, step)
 
-            # возвращаем модель в состояение обучения
+            if len(broken_body_parts) > 0:
+                eval_total_reward, eval_agents_lifetime = evaluate(walker_body, eval_env, body_model, 25, device,
+                                                                   broken_body_parts)
+                summary_writer.add_scalar(f"Eval total reward (broken {broken_body_parts})", eval_total_reward, step)
+                summary_writer.add_scalar(f"Eval agents lifetimes (broken {broken_body_parts})", eval_agents_lifetime,
+                                          step)
+
+            # возвращаем модель в состояние обучения
             for body_part_model in body_model.values():
                 body_part_model.train()
 
