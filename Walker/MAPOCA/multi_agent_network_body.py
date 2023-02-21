@@ -62,6 +62,7 @@ class MultiAgentNetworkBody(nn.Module):
             masks = list()
             for body_part in self.walker_body.body.keys():
                 obs = batch[body_part]["obs"]
+
                 # если наблюдение для текущей части тела содержит хотя бы одно значение nan,
                 # заполняем для него маску значением True
                 mask = torch.isnan(obs)

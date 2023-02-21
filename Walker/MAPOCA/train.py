@@ -89,8 +89,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
     walker_body = WalkerBody()
 
     # если нужно научиться ходить со сломанными частями тела, то соберем соответствующие индексы
-    # в пространствах наблюдений и действий
-    broken_body_parts = list()
+    # в пространствах наблюдений и действий для последующего использования
     obs_brake_idxs = list()
     actions_breake_idxs = list()
     if break_body_parts is not None:
@@ -101,13 +100,12 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
                 [idx for idx in body_part_prop.obs_space_idxs if idx not in walker_body.common_obs_space_idxs])
             actions_breake_idxs.extend(body_part_prop.action_space_idxs)
 
-
     # инициализация моделей актора и критика
-    # в зависимости от значения параметра restore_path модель восстанавивается из файла или только инициализируется
+    # в зависимости от значения параметра restore_path модель восстанавливается из файла или только инициализируется
     params = list()
     body_model = dict()
 
-    # проходим по всем частям тела агента и инициализиурем модель актора для каждой части тела агента
+    # проходим по всем частям тела агента и инициализируем модель актора для каждой части тела агента
     for body_part, body_part_property in walker_body.body.items():
         actor_model = ActorModel(body_part, body_part_property, walker_body.obs_size).to(device)
         params.extend(list(actor_model.parameters()))
@@ -139,10 +137,9 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
 
         step = checkpoint['step'] + 1
 
-    # переводим модели в состояение обучения
+    # переводим модели в состояние обучения
     for body_part_model in body_model.values():
         body_part_model.train()
-
     critic_model.train()
 
     # инициализируем среду Walker без графического представления для скорости
@@ -150,7 +147,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
         env_worker_id = 1
     env = UnityEnvironment(walker_env_path, worker_id=env_worker_id, no_graphics=True)
 
-    # инициализируем среду Walker без графического представления для тестирования модели
+    # инициализируем среду Walker для тестирования модели
     eval_env = None
     if eval_freq is not None:
         eval_env = UnityEnvironment(walker_env_path, worker_id=env_worker_id+1, no_graphics=True)
@@ -193,7 +190,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
 
         # если есть агенты, требующие решения о следующих действиях
         if ds.agent_id.shape[0] > 0:
-            # если объект памяти еще не создан, то создаем его
+            # если объект для буфера памяти еще не создан, то создаем его
             if memory is None:
                 memory = ExperienceBuffer(walker_body, ds.agent_id, buffer_size)
 
@@ -237,7 +234,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
                     # вычисляем действия и логарифмы вероятностей действий
                     # на вход модели подаем все пространство наблюдений
                     # это логично, потому что для решения о том, какое действие предпринять, например, ноге,
-                    # нужно знать состояние других частей тела
+                    # важно знать состояние других частей тела
                     actions, log_prob = body_part_model.forward(input_data)
 
                 # сохраняем полученные действия в общий массив действий агента на позиции,
@@ -307,6 +304,8 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
         if ts.agent_id.shape[0] > 0:
             for agent_id in ts.agent_id:
                 idx = ts.agent_id_to_index[agent_id]
+
+                # получим информацию о финальном состоянии и вознаграждении
                 obs = torch.from_numpy(ts.obs[0][idx])
                 reward = ts.reward[idx]
 
@@ -377,6 +376,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
                     body_part_names = list(walker_body.body.keys())
                     random.shuffle(body_part_names)
                     for body_part in body_part_names:
+                        # извлечем наблюдения и действия для текущей части тела агента
                         full_obs = batch[body_part]["full_obs"]
                         actions = batch[body_part]["actions"]
 
@@ -386,7 +386,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
                         mask = mask.sum(dim=1, keepdim=True)
                         mask = (mask == 0)
 
-                        # заменив в тензорах наблюдений и действий nan на 0.0
+                        # заменим в тензорах наблюдений и действий nan на 0.0
                         full_obs = torch.nan_to_num(full_obs)
                         actions = torch.nan_to_num(actions)
 
@@ -411,14 +411,15 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
                         advantages = batch[body_part]["advantages"]
 
                         # рассчитаем функции потерь для модели критика, используя значения,
-                        # полученные с помощью старой модели и с помощью текущей модели
+                        # полученные с помощью старой модели и с помощью текущей модели и с учетом маски
                         value_loss = calc_value_loss(common_values.cpu(), old_common_values, returns, mask, EPSILON)
                         value_body_loss = calc_value_loss(body_part_values.cpu(), old_body_part_values, returns, mask, EPSILON)
 
                         # рассчитаем функцию потерь для актора текущей части тела на основании рассчитанных
                         # с помощью старой модели значений переменных преимущества и логарифмов вероятностей действий,
                         # и рассчитанных с помощью текущей модели значений логарифмов вероятностей действий
-                        # предварительно заменим nan на 0.0, затем исключим эти значения при расчете функции потерь
+                        # предварительно заменим nan на 0.0,
+                        # затем исключим эти значения при расчете функции потерь с помощью маски
                         old_log_probs = torch.nan_to_num(old_log_probs)
                         policy_loss = calc_policy_loss(advantages, log_probs.cpu(), old_log_probs, mask, EPSILON)
 
