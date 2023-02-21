@@ -477,6 +477,20 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
             print(f"Train time,s: {(time.time() - train_start_time):.1f}")
             actor_start_time = time.time()
 
+        # если достигли шага, на котором нужно протестировать модель, то тестируем и пишем результаты в tensorboard
+        if eval_freq is not None and step > 0 and step % eval_freq == 0:
+            eval_start_time = time.time()
+
+            eval_total_reward, eval_agents_lifetime = evaluate(walker_body, eval_env, body_model, 25, device)
+            summary_writer.add_scalar("Eval total reward", eval_total_reward, step)
+            summary_writer.add_scalar("Eval agents lifetimes", eval_agents_lifetime, step)
+
+            # возвращаем модель в состояение обучения
+            for body_part_model in body_model.values():
+                body_part_model.train()
+
+            print(f"Eval time,s: {(time.time() - eval_start_time):.1f}")
+
         # если достигли шага, на котором нужно сохранять модель, то сохраняем
         if save_freq is not None and save_path is not None:
             if step > 0 and step % save_freq == 0:
@@ -500,20 +514,6 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
                         for arg in ex.args:
                             print(str(arg))
                         print(traceback.format_exc())
-
-        # если достигли шага, на котором нужно протестировать модель, то тестируем и пишем результаты в tensorboard
-        if eval_freq is not None and step > 0 and step % eval_freq == 0:
-            eval_start_time = time.time()
-
-            eval_total_reward, eval_agents_lifetime = evaluate(walker_body, eval_env, body_model, 25, device)
-            summary_writer.add_scalar("Eval total reward", eval_total_reward, step)
-            summary_writer.add_scalar("Eval agents lifetimes", eval_agents_lifetime, step)
-
-            # возвращаем модель в состояение обучения
-            for body_part_model in body_model.values():
-                body_part_model.train()
-
-            print(f"Eval time,s: {(time.time() - eval_start_time):.1f}")
 
         # увеличиваем шаг на 1 и обновляем прогрессбар
         step += 1
