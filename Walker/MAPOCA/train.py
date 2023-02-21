@@ -382,7 +382,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
 
                         # определим маску со значениями, которые относятся к сломанной части тела,
                         # чтобы исключить их из рассчета функции потерь
-                        mask = torch.isnan(actions)
+                        mask = torch.isnan(actions).cpu()
                         mask = mask.sum(dim=1, keepdim=True)
                         mask = (mask == 0)
 
