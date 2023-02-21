@@ -513,9 +513,9 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
                 torch.save(save_dict, save_file_name)
 
                 summary_writer.flush()
+                summary_writer.close()
 
                 if cloud_saver is not None:
-                    summary_writer.close()
                     try:
                         cloud_saver.save(checkpoint_file_name=save_file_name, tensorboard_dir=summary_dir)
                     except Exception as ex:
