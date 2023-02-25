@@ -82,8 +82,8 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
     if cloud_path is not None:
         cloud_saver = CloudSaver(cloud_path)
 
-    # инициализируем вспопогательный класс WalkerBody
-    # класс хранит в себе данные о декомпоизии агента на условную команду,
+    # инициализируем вспомогательный класс WalkerBody
+    # класс хранит в себе данные о декомпозици агента на условную команду,
     # состоящую и частей тела агента
     walker_body = WalkerBody()
 

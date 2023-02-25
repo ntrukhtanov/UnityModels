@@ -4,6 +4,16 @@ from statistics import mean
 
 
 def evaluate(walker_body, env, model, episodes, device, broken_body_parts):
+    """
+    Метод тестирования модели без отрисовки среды
+    :param walker_body: данные о декомпозиции агента
+    :param env: объект среды Walker для тестирования
+    :param model: модель актора
+    :param episodes: количество эпизодов для тестирования
+    :param device: устройство на котором выполнять актор
+    :param broken_body_parts: сломанные части тела агента
+    :return:
+    """
     # инициализируем среду Walker
     env.reset()
 
