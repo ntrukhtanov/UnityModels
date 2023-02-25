@@ -6,7 +6,7 @@ import torch
 from body_parts import WalkerBody
 from actor import ActorModel
 
-import sys
+import argparse
 import time
 from datetime import timedelta
 
@@ -113,45 +113,20 @@ def run_model(walker_env_path, restore_path, env_worker_id, break_body_parts=Non
 
 
 def run():
-    # TODO: прокомментировать и переписать красиво
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-walker_env_path')
+    parser.add_argument('-restore_path')
+    parser.add_argument('-env_worker_id', type=int)
+    parser.add_argument('-break_body_parts')
+    parser.add_argument('-break_body_parts_period', type=int)
 
-    args = sys.argv
+    args = parser.parse_args()
 
-    if '-walker_env_path' in args:
-        idx = args.index('-walker_env_path')
-        walker_env_path = args[idx + 1]
-    else:
-        walker_env_path = None
-
-    if '-restore_path' in args:
-        idx = args.index('-restore_path')
-        restore_path = args[idx + 1]
-    else:
-        restore_path = None
-
-    if '-env_worker_id' in args:
-        idx = args.index('-env_worker_id')
-        env_worker_id = int(args[idx + 1])
-    else:
-        env_worker_id = None
-
-    if '-break_body_parts' in args:
-        idx = args.index('-break_body_parts')
-        break_body_parts = args[idx + 1]
-    else:
-        break_body_parts = None
-
-    if '-break_body_parts_period' in args:
-        idx = args.index('-break_body_parts_period')
-        break_body_parts_period = int(args[idx + 1])
-    else:
-        break_body_parts_period = None
-
-    run_model(walker_env_path=walker_env_path,
-              restore_path=restore_path,
-              env_worker_id=env_worker_id,
-              break_body_parts=break_body_parts,
-              break_body_parts_period=break_body_parts_period)
+    run_model(walker_env_path=args.walker_env_path,
+              restore_path=args.restore_path,
+              env_worker_id=args.env_worker_id,
+              break_body_parts=args.break_body_parts,
+              break_body_parts_period=args.break_body_parts_period)
 
 
 if __name__ == '__main__':
