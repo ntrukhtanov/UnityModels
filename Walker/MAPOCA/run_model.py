@@ -9,7 +9,7 @@ from actor import ActorModel
 import sys
 
 
-def run_model(walker_env_path, restore_path, env_worker_id):
+def run_model(walker_env_path, restore_path, env_worker_id, break_body_parts=None, break_body_parts_period=None):
     walker_body = WalkerBody()
     body_model = dict()
 
@@ -104,9 +104,23 @@ def run():
     else:
         env_worker_id = None
 
+    if '-break_body_parts' in args:
+        idx = args.index('-break_body_parts')
+        break_body_parts = args[idx + 1]
+    else:
+        break_body_parts = None
+
+    if '-break_body_parts_period' in args:
+        idx = args.index('-break_body_parts_period')
+        break_body_parts_period = int(args[idx + 1])
+    else:
+        break_body_parts_period = None
+
     run_model(walker_env_path=walker_env_path,
               restore_path=restore_path,
-              env_worker_id=env_worker_id)
+              env_worker_id=env_worker_id,
+              break_body_parts=break_body_parts,
+              break_body_parts_period=break_body_parts_period)
 
 
 if __name__ == '__main__':
