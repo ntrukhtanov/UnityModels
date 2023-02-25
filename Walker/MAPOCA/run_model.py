@@ -12,7 +12,7 @@ import time
 
 
 # TODO: прокомментировать
-# ./Unity/Walker
+#/home/tnv/tempExperiments/model_350000.pt
 def run_model(walker_env_path, restore_path, env_worker_id):
     walker_body = WalkerBody()
     body_model = dict()
@@ -30,7 +30,7 @@ def run_model(walker_env_path, restore_path, env_worker_id):
     channel = EngineConfigurationChannel()
     env = UnityEnvironment(walker_env_path, side_channels=[channel], worker_id=env_worker_id, no_graphics=False)
     #channel.set_configuration_parameters(time_scale=1.0)
-    #channel.set_configuration_parameters(target_frame_rate=60)
+    #channel.set_configuration_parameters(target_frame_rate=24)
     #channel.set_configuration_parameters(capture_frame_rate=True)
     env.reset()
     behavior_name = None
@@ -42,7 +42,7 @@ def run_model(walker_env_path, restore_path, env_worker_id):
     agents_statistic = dict()
 
     step = 0
-    time_4_step = 0.5
+    time_4_step = 0.2
     while True:
         start_time = time.time()
         ds, ts = env.get_steps(behavior_name)
@@ -86,9 +86,9 @@ def run_model(walker_env_path, restore_path, env_worker_id):
 
         step += 1
         env.step()
-        # sleep_time = time_4_step - (time.time() - start_time)
-        # if sleep_time > 0:
-        #     time.sleep(sleep_time)
+        sleep_time = time_4_step - (time.time() - start_time)
+        if sleep_time > 0:
+            time.sleep(sleep_time)
 
 
 

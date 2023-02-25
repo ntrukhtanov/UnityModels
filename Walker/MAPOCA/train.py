@@ -21,10 +21,10 @@ from critic import CriticModel
 from loss_functions import calc_value_loss
 from loss_functions import calc_returns
 from loss_functions import calc_policy_loss
-
 from memory import ExperienceBuffer
-
 from cloud_saver import CloudSaver
+from eval import evaluate
+
 
 RANDOM_SEED = 42
 
@@ -36,7 +36,7 @@ BETA = 0.01
 
 def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, iter_count,
           save_path=None, save_freq=None, restore_path=None, cloud_path=None, env_worker_id=None,
-          cloud_restore_path=None):
+          cloud_restore_path=None, eval_freq=None):
     """
     Функция обучения модели.
     :param walker_env_path: Путь к сборке среды Walker
@@ -51,6 +51,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
     :param cloud_path: Путь в облачном хранилище для копирования модели
     :param env_worker_id: id пространства unity Walker
     :param cloud_restore_path: Путь в облачном хранилище для загрузки модели
+    :param eval_freq: Частота тестового прогона модели (каждые eval_freq шагов)
     :return:
     """
     assert walker_env_path is not None, f"Не указан обязательный параметр walker_env_path"
@@ -122,10 +123,21 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
 
         step = checkpoint['step'] + 1
 
+    # переводим модели в состояение обучения
+    for body_part_model in body_model.values():
+        body_part_model.train()
+
+    critic_model.train()
+
     # инициализируем среду Walker без графического представления для скорости
     if env_worker_id is None:
         env_worker_id = 1
     env = UnityEnvironment(walker_env_path, worker_id=env_worker_id, no_graphics=True)
+
+    # инициализируем среду Walker без графического представления для тестирования модели
+    eval_env = None
+    if eval_freq is not None:
+        eval_env = UnityEnvironment(walker_env_path, worker_id=env_worker_id+1, no_graphics=True)
 
     # сбрасываем среду в начальное состояние
     env.reset()
@@ -156,6 +168,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
     # в случае восстановления модели из бэкапа
     pbar = tqdm(range(total_steps))
     pbar.update(n=step)
+    actor_start_time = time.time()
     while step < total_steps:
         # получаем данные из среды Walker:
         # ds - содержит данные об агентах, которые требуют указания действий для следующего шага
@@ -275,7 +288,8 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
 
         # если буфер траекторий агентов наполнился, то начинаем обучать модель
         if memory.buffer_is_full():
-            start_time = time.time()
+            print(f"Actor run time,s: {(time.time() - actor_start_time):.1f}")
+            train_start_time = time.time()
             # сначала вычислим необходимые переменные на текущей модели и добавим их в память
             # эти значения потребуются для вычисления функций потерь во время обучения
             for agent_id in memory.agent_ids:
@@ -404,7 +418,22 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
             # сбрасываем среду в начальное состояние
             env.reset()
 
-            print(f"Train time,s: {(time.time() - start_time):.1f}")
+            print(f"Train time,s: {(time.time() - train_start_time):.1f}")
+            actor_start_time = time.time()
+
+        # если достигли шага, на котором нужно протестировать модель, то тестируем и пишем результаты в tensorboard
+        if eval_freq is not None and step > 0 and step % eval_freq == 0:
+            eval_start_time = time.time()
+
+            eval_total_reward, eval_agents_lifetime = evaluate(walker_body, eval_env, body_model, 25, device)
+            summary_writer.add_scalar("Eval total reward", eval_total_reward, step)
+            summary_writer.add_scalar("Eval agents lifetimes", eval_agents_lifetime, step)
+
+            # возвращаем модель в состояение обучения
+            for body_part_model in body_model.values():
+                body_part_model.train()
+
+            print(f"Eval time,s: {(time.time() - eval_start_time):.1f}")
 
         # если достигли шага, на котором нужно сохранять модель, то сохраняем
         if save_freq is not None and save_path is not None:
@@ -419,9 +448,9 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
                 torch.save(save_dict, save_file_name)
 
                 summary_writer.flush()
+                summary_writer.close()
 
                 if cloud_saver is not None:
-                    summary_writer.close()
                     try:
                         cloud_saver.save(checkpoint_file_name=save_file_name, tensorboard_dir=summary_dir)
                     except Exception as ex:
@@ -520,6 +549,12 @@ def run():
     else:
         cloud_restore_path = None
 
+    if '-eval_freq' in args:
+        idx = args.index('-eval_freq')
+        eval_freq = int(args[idx + 1])
+    else:
+        eval_freq = None
+
     train(walker_env_path=walker_env_path,
           summary_dir=summary_dir,
           total_steps=total_steps,
@@ -531,7 +566,8 @@ def run():
           restore_path=restore_path,
           cloud_path=cloud_path,
           env_worker_id=env_worker_id,
-          cloud_restore_path=cloud_restore_path)
+          cloud_restore_path=cloud_restore_path,
+          eval_freq=eval_freq)
 
 
 if __name__ == '__main__':
