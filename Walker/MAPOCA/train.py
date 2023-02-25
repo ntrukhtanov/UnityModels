@@ -5,16 +5,15 @@ import numpy as np
 import torch
 import random
 from torch.utils.tensorboard import SummaryWriter
-import sys
 from tqdm import tqdm
 import statistics
 import os
 import traceback
 import math
 import time
+import argparse
 
 from body_parts import WalkerBody
-from body_parts import BodyPartProperties
 
 from actor import ActorModel
 from critic import CriticModel
@@ -530,116 +529,38 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
 
 
 def run():
-    # TODO: прокомментировать и переписать красиво
-    # -buffer_size 32
-    # -total_steps 30000000
-    # -walker_env_path ./Unity/Walker
-    # -summary_dir /home/tnv/tensorboard
-    # -save_path /home/tnv/tempModel
-    # -save_freq 10000
-    # -restore_path /home/tnv/tempModel/model_10.pt
-    # -cloud_path /Kaggle/Walker
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-summary_dir')
+    parser.add_argument('-total_steps', type=int)
+    parser.add_argument('-buffer_size', type=int)
+    parser.add_argument('-batch_size', type=int)
+    parser.add_argument('-iter_count', type=int)
+    parser.add_argument('-walker_env_path')
+    parser.add_argument('-save_path')
+    parser.add_argument('-save_freq', type=int)
+    parser.add_argument('-restore_path')
+    parser.add_argument('-cloud_path')
+    parser.add_argument('-env_worker_id', type=int)
+    parser.add_argument('-cloud_restore_path')
+    parser.add_argument('-eval_freq', type=int)
+    parser.add_argument('-break_body_parts')
 
-    args = sys.argv
+    args = parser.parse_args()
 
-    if '-summary_dir' in args:
-        idx = args.index('-summary_dir')
-        summary_dir = args[idx + 1]
-    else:
-        summary_dir = None
-
-    if '-total_steps' in args:
-        idx = args.index('-total_steps')
-        total_steps = int(args[idx + 1])
-    else:
-        total_steps = None
-
-    if '-buffer_size' in args:
-        idx = args.index('-buffer_size')
-        buffer_size = int(args[idx + 1])
-    else:
-        buffer_size = None
-
-    if '-batch_size' in args:
-        idx = args.index('-batch_size')
-        batch_size = int(args[idx + 1])
-    else:
-        batch_size = None
-
-    if '-iter_count' in args:
-        idx = args.index('-iter_count')
-        iter_count = int(args[idx + 1])
-    else:
-        iter_count = None
-
-    if '-walker_env_path' in args:
-        idx = args.index('-walker_env_path')
-        walker_env_path = args[idx + 1]
-    else:
-        walker_env_path = None
-
-    if '-save_path' in args:
-        idx = args.index('-save_path')
-        save_path = args[idx + 1]
-    else:
-        save_path = None
-
-    if '-save_freq' in args:
-        idx = args.index('-save_freq')
-        save_freq = int(args[idx + 1])
-    else:
-        save_freq = None
-
-    if '-restore_path' in args:
-        idx = args.index('-restore_path')
-        restore_path = args[idx + 1]
-    else:
-        restore_path = None
-
-    if '-cloud_path' in args:
-        idx = args.index('-cloud_path')
-        cloud_path = args[idx + 1]
-    else:
-        cloud_path = None
-
-    if '-env_worker_id' in args:
-        idx = args.index('-env_worker_id')
-        env_worker_id = int(args[idx + 1])
-    else:
-        env_worker_id = None
-
-    if '-cloud_restore_path' in args:
-        idx = args.index('-cloud_restore_path')
-        cloud_restore_path = args[idx + 1]
-    else:
-        cloud_restore_path = None
-
-    if '-eval_freq' in args:
-        idx = args.index('-eval_freq')
-        eval_freq = int(args[idx + 1])
-    else:
-        eval_freq = None
-
-    if '-break_body_parts' in args:
-        idx = args.index('-break_body_parts')
-        break_body_parts = args[idx + 1]
-    else:
-        break_body_parts = None
-
-    train(walker_env_path=walker_env_path,
-          summary_dir=summary_dir,
-          total_steps=total_steps,
-          buffer_size=buffer_size,
-          batch_size=batch_size,
-          iter_count=iter_count,
-          save_path=save_path,
-          save_freq=save_freq,
-          restore_path=restore_path,
-          cloud_path=cloud_path,
-          env_worker_id=env_worker_id,
-          cloud_restore_path=cloud_restore_path,
-          eval_freq=eval_freq,
-          break_body_parts=break_body_parts)
+    train(walker_env_path=args.walker_env_path,
+          summary_dir=args.summary_dir,
+          total_steps=args.total_steps,
+          buffer_size=args.buffer_size,
+          batch_size=args.batch_size,
+          iter_count=args.iter_count,
+          save_path=args.save_path,
+          save_freq=args.save_freq,
+          restore_path=args.restore_path,
+          cloud_path=args.cloud_path,
+          env_worker_id=args.env_worker_id,
+          cloud_restore_path=args.cloud_restore_path,
+          eval_freq=args.eval_freq,
+          break_body_parts=args.break_body_parts)
 
 
 if __name__ == '__main__':
