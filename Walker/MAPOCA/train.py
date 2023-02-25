@@ -333,7 +333,7 @@ def train(walker_env_path, summary_dir, total_steps, buffer_size, batch_size, it
             for agent_id in memory.agent_ids:
                 common_values = torch.Tensor(memory.buffer[agent_id]["common_values"])
 
-                # вычислим дисконтированные вознаграждения с учетом ранее вычисленных значений модели критика
+                # вычислим значения целевой функции полезности с учетом ранее вычисленных значений модели критика
                 rewards = torch.Tensor(memory.buffer[agent_id]["rewards"])[:buffer_size]
                 dones = torch.Tensor(memory.buffer[agent_id]["dones"])[:buffer_size]
                 returns = calc_returns(rewards=rewards,

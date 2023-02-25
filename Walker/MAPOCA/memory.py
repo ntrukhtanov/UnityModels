@@ -2,9 +2,15 @@ import random
 
 import torch
 
-# TODO: прокомментировать
+
 class ExperienceBuffer:
     def __init__(self, walker_body, agent_ids, buffer_size):
+        """
+        Буфер для хранения информации о траекториях агентов
+        :param walker_body: информация о декомпозиции агента
+        :param agent_ids: идентификаторы агентов в среде Walker
+        :param buffer_size: размер буфера
+        """
         self.walker_body = walker_body
         self.agent_ids = agent_ids
         self.buffer_size = buffer_size
@@ -14,22 +20,37 @@ class ExperienceBuffer:
         self.reset()
 
     def reset(self):
+        """
+        Метод сброса состояния буфера в начальное состояние
+        :return:
+        """
         self.buffer = dict()
         for agent_id in self.agent_ids:
             self.buffer[agent_id] = dict()
-            self.buffer[agent_id]["obs"] = list()
-            self.buffer[agent_id]["actions"] = list()
-            self.buffer[agent_id]["log_probs"] = list()
-            self.buffer[agent_id]["rewards"] = list()
-            self.buffer[agent_id]['next_obs'] = list()
-            self.buffer[agent_id]['dones'] = list()
+            self.buffer[agent_id]["obs"] = list()  # наблюдения агента
+            self.buffer[agent_id]["actions"] = list()  # действия агента
+            self.buffer[agent_id]["log_probs"] = list()  # логарифмы вероятностей действий агента
+            self.buffer[agent_id]["rewards"] = list()  # вознаграждения агента
+            self.buffer[agent_id]['next_obs'] = list()  # наблюдения агента после выполнения действий
+            self.buffer[agent_id]['dones'] = list()  # признаки завершения эпизода для агента
 
-            self.buffer[agent_id]["common_values"] = list()
+            self.buffer[agent_id]["common_values"] = list()  # значения выходов модели критика на основе наблюдений
             for body_part in self.walker_body.body.keys():
                 self.buffer[agent_id][body_part] = dict()
+                # значения выходов модели критика на основе наблюдений текущей части тела
+                # и наблюдений + действий остальных частей тела агента
                 self.buffer[agent_id][body_part]["body_part_values"] = list()
 
     def add_experience(self, agent_id, obs, actions, reward, log_probs):
+        """
+        Метод добавления записи в буфер
+        :param agent_id: id агента в среде Walker
+        :param obs: наблюдения агента
+        :param actions: действия агента
+        :param reward: вознаграждение агента
+        :param log_probs: логарифмы вероятностей действий агента
+        :return:
+        """
         if len(self.buffer[agent_id]["obs"]) > len(self.buffer[agent_id]["next_obs"]):
             self.buffer[agent_id]["next_obs"].append(obs)
             self.buffer[agent_id]["rewards"].append(reward)
@@ -39,31 +60,63 @@ class ExperienceBuffer:
         self.buffer[agent_id]["log_probs"].append(log_probs)
 
     def set_terminate_state(self, agent_id, obs, reward):
+        """
+        Метод добавления информации в момент завершения эпизода для агента
+        :param agent_id: id агента в среде Walker
+        :param obs: наблюдения агента
+        :param reward: вознаграждение агента
+        :return:
+        """
         if len(self.buffer[agent_id]["obs"]) > 0:
             self.buffer[agent_id]["next_obs"].append(obs)
             self.buffer[agent_id]["rewards"].append(reward)
             self.buffer[agent_id]["dones"].append(True)
 
     def add_common_values(self, values):
+        """
+        Метод добавления данных о выходе модели критика на основе наблюдений всех частей тела агента
+        :param values: значения на выходе модели критика
+        :return:
+        """
         for i, agent_id in enumerate(self.agent_ids):
             self.buffer[agent_id]["common_values"].append(values[i])
 
     def add_body_part_values(self, body_part, values):
+        """
+        Метод добавления данных о выходе модели критика на основе наблюдений текущей части тела и
+        конкатенации наблюдений и действий остальных частей тела
+        :param body_part: текущая часть тела
+        :param values: значения на выходе модели критика
+        :return:
+        """
         for i, agent_id in enumerate(self.agent_ids):
             self.buffer[agent_id][body_part]["body_part_values"].append(values[i])
 
     def add_returns(self, agent_id, returns):
+        """
+        Функция сохранения в буфер рассчитанных значений целевой функции полезности
+        :param agent_id: id агента в среде Walker
+        :param returns: значения целевой функции полезности
+        :return:
+        """
         self.buffer[agent_id]["returns"] = returns
 
     def add_advantages(self, agent_id, body_part, advantages):
+        """
+        Функция сохранения в буфер значений функции преимущества
+        :param agent_id: id агента в среде Walker
+        :param body_part: часть тела агента для которой рассчитана функция преимущества
+        :param advantages: значения функции преимущества
+        :return:
+        """
         self.buffer[agent_id][body_part]["advantages"] = advantages
 
-    def add_calculated_values(self, agent_id, body_part, key, data):
-        if body_part not in self.buffer[agent_id].keys():
-            self.buffer[agent_id][body_part] = dict()
-        self.buffer[agent_id][body_part][key] = data
-
     def sample_buffer(self, shuffle):
+        """
+        Извлечение данных буфера в удобной для обучения форме с перемешиванием данных
+        :param shuffle: признак необходимости перемешать данные
+        :return: буфер с подготовленными данными
+        """
         buffer = dict()
         buffer['size'] = self.buffer_size * len(self.agent_ids)
         rnd_idxs = list(range(buffer['size']))
@@ -113,6 +166,16 @@ class ExperienceBuffer:
         return buffer
 
     def sample_batch(self, buffer, batch_step, batch_size, device, device_keys):
+        """
+        Извлечение из буфера батча нужного размера
+        :param buffer: Буфер из которого нужно извлечь батч
+        :param batch_step: Индекс в буфере с которого начать считыванеи батча
+        :param batch_size: Размер батча
+        :param device: Устройство в которое следует отправить данные
+        :param device_keys: Ключи значний в буфере, которые следует отправить на устройстов
+        (не все нужно отправлять в GPU)
+        :return: Батч ч данными
+        """
         batch = dict()
         for body_part in self.walker_body.body.keys():
             batch[body_part] = dict()
@@ -123,6 +186,11 @@ class ExperienceBuffer:
         return batch
 
     def get_last_record_batch(self, device):
+        """
+        Метод извлечения последней записи в буфере
+        :param device: Устройстов на которое следует отправить извлеченные данные
+        :return: Буфер с последней записью
+        """
         batch = dict()
         for body_part, body_part_prop in self.walker_body.body.items():
             batch[body_part] = dict()
@@ -139,6 +207,10 @@ class ExperienceBuffer:
         return batch
 
     def buffer_is_full(self):
+        """
+        Метод проверки, что буфер наполнился
+        :return: True/False
+        """
         for agent_id in self.agent_ids:
             if len(self.buffer[agent_id]["actions"]) < self.buffer_size + 1:
                 return False
