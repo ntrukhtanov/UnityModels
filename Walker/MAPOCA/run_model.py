@@ -1,18 +1,14 @@
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 from mlagents_envs.base_env import ActionTuple
-import numpy as np
 import torch
 
 from body_parts import WalkerBody
 from actor import ActorModel
 
 import sys
-import time
 
 
-# TODO: прокомментировать
-#/home/tnv/tempExperiments/model_350000.pt
 def run_model(walker_env_path, restore_path, env_worker_id):
     walker_body = WalkerBody()
     body_model = dict()
@@ -40,11 +36,8 @@ def run_model(walker_env_path, restore_path, env_worker_id):
 
     # буферы для промежуточного хранения информации о статистике агентов
     agents_statistic = dict()
-
     step = 0
-    time_4_step = 0.2
     while True:
-        start_time = time.time()
         ds, ts = env.get_steps(behavior_name)
         if ds.agent_id.shape[0] > 0:
             n_agents = ds.agent_id.shape[0]
@@ -86,10 +79,6 @@ def run_model(walker_env_path, restore_path, env_worker_id):
 
         step += 1
         env.step()
-        sleep_time = time_4_step - (time.time() - start_time)
-        if sleep_time > 0:
-            time.sleep(sleep_time)
-
 
 
 def run():
