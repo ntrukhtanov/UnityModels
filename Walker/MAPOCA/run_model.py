@@ -12,6 +12,15 @@ from datetime import timedelta
 
 
 def run_model(walker_env_path, restore_path, env_worker_id, break_body_parts=None, break_body_parts_period=None):
+    """
+    Функция тестирования модели с отрисовкой среды Walker
+    :param walker_env_path: путь к сборке среды Walker
+    :param restore_path: путь к файлу с моделью, на основе которой восстанавливать актор
+    :param env_worker_id: worker_id для среды
+    :param break_body_parts: части тела агента, которые следует сломать
+    :param break_body_parts_period: частота поломки частей тела в секундах, если None, то сломано всегда
+    :return:
+    """
     walker_body = WalkerBody()
 
     # если нужно протестировать агентов со сломанными частями тела, то соберем соответствующие индексы
@@ -39,9 +48,6 @@ def run_model(walker_env_path, restore_path, env_worker_id, break_body_parts=Non
 
     channel = EngineConfigurationChannel()
     env = UnityEnvironment(walker_env_path, side_channels=[channel], worker_id=env_worker_id, no_graphics=False)
-    #channel.set_configuration_parameters(time_scale=1.0)
-    #channel.set_configuration_parameters(target_frame_rate=24)
-    #channel.set_configuration_parameters(capture_frame_rate=True)
     env.reset()
     behavior_name = None
     for behavior_name in env.behavior_specs:
