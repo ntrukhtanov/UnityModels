@@ -20,10 +20,6 @@
 Алгоритм декомпозиции пространств наблюдений: [исходные коды](https://github.com/ntrukhtanov/UnityModels/blob/master/Walker/MAPOCA/body_parts.py).
 
 
-## Запуск процесса обучения
-
-Для запуска процесса обучения требуется запустить файл [train.py](https://github.com/ntrukhtanov/UnityModels/blob/master/Walker/MAPOCA/train.py) с параметрами, описанными в комментариях к функции train().
-
 ## Установка зависимостей
 
 Для запуска исходных кодов требуется установка следующих библиотек со всеми зависимостями:
@@ -35,6 +31,25 @@
 ## Установка среды Walker
 
 Для установки среды Walker проследуйте инструкциям по [ссылке](https://github.com/Unity-Technologies/ml-agents/blob/develop/docs/Getting-Started.md).
+
+
+## Запуск процесса обучения
+
+Для запуска процесса обучения требуется запустить файл [train.py](https://github.com/ntrukhtanov/UnityModels/blob/master/Walker/MAPOCA/train.py) с параметрами, описанными в комментариях к функции train.
+
+
+## Запуск процесса тестирования с рендерингом в среде Walker
+
+Для запуска процесса обучения требуется запустить файл [run_model.py](https://github.com/ntrukhtanov/UnityModels/blob/master/Walker/MAPOCA/run_model.py) с параметрами, описанными в комментариях к функции run_model.
+
+
+## Методика проведения экспериментов
+
+### Архитектура модели и принцип работы алгоритма
+
+![Архитектура адаптированной модели MA-POCA к задаче Walker](https://github.com/ntrukhtanov/UnityModels/tree/master/Walker/MAPOCA/images/adapted_MAPOCA_schema.png "Архитектура адаптированной модели MA-POCA к задаче Walker")
+
+На рисунке выше отображена схема модели 
 
 ## Источники
 
