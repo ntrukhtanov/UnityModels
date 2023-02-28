@@ -43,20 +43,6 @@
 Для запуска процесса обучения требуется запустить файл [run_model.py](https://github.com/ntrukhtanov/UnityModels/blob/master/Walker/MAPOCA/run_model.py) с параметрами, описанными в комментариях к функции run_model.
 
 
-## Методика проведения экспериментов
-
-### Архитектура модели и принцип работы алгоритма
-
-![Архитектура адаптированной модели MA-POCA к задаче Walker](images/adapted-MAPOCA-schema.png "Архитектура адаптированной модели MA-POCA к задаче Walker")
-
-![Adapted](images/adapted_MAPOCA_schema.jpg)
-
-
-![Adapted](images/adapted-MAPOCA-schema.svg)
-
-
-На рисунке выше отображена схема модели 
-
 ## Источники
 
 > juliani2020, Unity: A general platform for intelligent agents, Juliani, Arthur and Berges, Vincent-Pierre and Teng, Ervin and Cohen, Andrew and Harper, Jonathan and Elion, Chris and Goy, Chris and Gao, Yuan and Henry, Hunter and Mattar, Marwan and Lange, Danny, arXiv preprint arXiv:1809.02627, 2020
