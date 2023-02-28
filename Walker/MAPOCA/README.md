@@ -49,20 +49,10 @@
 
 ![Архитектура адаптированной модели MA-POCA к задаче Walker](https://github.com/ntrukhtanov/UnityModels/tree/master/Walker/MAPOCA/images/adapted-MAPOCA-schema.png "Архитектура адаптированной модели MA-POCA к задаче Walker")
 
-![Архитектура адаптированной модели MA-POCA к задаче Walker](https://github.com/ntrukhtanov/UnityModels/tree/master/Walker/MAPOCA/images/adapted-MAPOCA-schema.jpg)
+![Adapted](https://github.com/ntrukhtanov/UnityModels/tree/master/Walker/MAPOCA/images/adapted-MAPOCA-schema.png)
 
+![Архитектура адаптированной модели MA-POCA к задаче Walker](https://github.com/ntrukhtanov/UnityModels/tree/master/Walker/MAPOCA/images/adapted-MAPOCA-schema.svg "Архитектура адаптированной модели MA-POCA к задаче Walker")
 
-<dl>
-<a href="https://github.com/ntrukhtanov/UnityModels/tree/master/Walker/MAPOCA/images/adapted_MAPOCA_schema.png" title="Архитектура адаптированной модели MA-POCA к задаче Walker">
-<img alt="Архитектура адаптированной модели MA-POCA к задаче Walker" src="https://github.com/ntrukhtanov/UnityModels/tree/master/Walker/MAPOCA/images/adapted_MAPOCA_schema.png">
-</a>
-</dl> 
-
-<dl>
-<a href="https://github.com/ntrukhtanov/UnityModels/tree/master/Walker/MAPOCA/images/adapted_MAPOCA_schema.jpg" title="Архитектура адаптированной модели MA-POCA к задаче Walker">
-<img alt="Архитектура адаптированной модели MA-POCA к задаче Walker" src="https://github.com/ntrukhtanov/UnityModels/tree/master/Walker/MAPOCA/images/adapted_MAPOCA_schema.jpg">
-</a>
-</dl> 
 
 На рисунке выше отображена схема модели 
 
