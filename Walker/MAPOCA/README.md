@@ -47,9 +47,9 @@
 
 ### Архитектура модели и принцип работы алгоритма
 
-![Архитектура адаптированной модели MA-POCA к задаче Walker](https://github.com/ntrukhtanov/UnityModels/tree/master/Walker/MAPOCA/images/adapted_MAPOCA_schema.png "Архитектура адаптированной модели MA-POCA к задаче Walker")
+![Архитектура адаптированной модели MA-POCA к задаче Walker](https://github.com/ntrukhtanov/UnityModels/tree/master/Walker/MAPOCA/images/adapted-MAPOCA-schema.png "Архитектура адаптированной модели MA-POCA к задаче Walker")
 
-![Архитектура адаптированной модели MA-POCA к задаче Walker](https://github.com/ntrukhtanov/UnityModels/tree/master/Walker/MAPOCA/images/adapted_MAPOCA_schema.jpg "Архитектура адаптированной модели MA-POCA к задаче Walker")
+![Архитектура адаптированной модели MA-POCA к задаче Walker](https://github.com/ntrukhtanov/UnityModels/tree/master/Walker/MAPOCA/images/adapted-MAPOCA-schema.jpg)
 
 
 <dl>
