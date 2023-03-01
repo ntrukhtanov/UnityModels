@@ -285,6 +285,11 @@ i-го агента и конкатенации наблюдений и дейс
 По [ссылке](https://disk.yandex.ru/i/NQEQC5gEsWHuow) доступно видео движения агента, на котором первые 20 секунд агент 
 движется с работающей левой рукой, а затем рука обездвиживается.
 
+Проведенных экспериментов пока не достаточно, чтобы судить о качестве модели и сравнивать с результатами, 
+полученными при помощи алгоритмов PPO и SAC. Результаты, полученные командой Unity доступны в работе
+[Arthur Juliani, Vincent-Pierre Berges, Ervin Teng, Andrew Cohen, Jonathan Harper, Chris Elion, Chris Goy, 
+Yuan Gao, Hunter Henry, Marwan Mattar, Danny Lange. 
+Unity: A General Platform for Intelligent Agents](https://arxiv.org/abs/1809.02627).
 
 ## Выводы
 
